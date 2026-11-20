@@ -553,7 +553,24 @@ export function conversationAction(id: string, action: ConversationAction, value
   if (action === 'copyId') showToast('Conversation ID copied', 'success');
   if (action === 'archive') showToast('Chat archived', 'success');
   if (action === 'unarchive') showToast('Chat unarchived', 'success');
-  if (action === 'delete' && id === state.chat.conversationId) newChat();
+  if (action === 'delete') {
+    if (isPinned(id)) setPinned(id, false);
+    if (id === state.chat.conversationId) newChat();
+  }
+}
+
+// ---- pinned chats (the app's PinnedChats): only the ids, kept in the shared prefs, so pinning works the same for every
+// agent and every view (sidebar and editor tabs)
+export function pinnedIds(): Set<string> {
+  const v = uiPrefs()?.pinnedChats;
+  return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+}
+export const isPinned = (id: string) => pinnedIds().has(id);
+export function setPinned(id: string, pinned: boolean) {
+  if (!id || pinnedIds().has(id) === pinned) return;
+  const next = pinned ? [...pinnedIds(), id] : [...pinnedIds()].filter((x) => x !== id);
+  patchUiPrefs({ pinnedChats: next });
+  host.send({ type: 'setUiPref', key: 'pinnedChats', value: next });
 }
 
 export function copyText(text: string, toast?: string) {

@@ -256,6 +256,11 @@
   color: color-mix(in srgb, var(--on-surface) 45%, transparent);
   white-space: nowrap;
 }
+/* pinned to the top: a small pin next to the time */
+.chat-row-pin {
+  color: color-mix(in srgb, var(--on-surface) 45%, transparent);
+  flex-shrink: 0;
+}
 .chat-row.sub .chat-row-time {
   font-size: calc(10.5 * var(--sp));
 }

@@ -94,12 +94,16 @@ func NewManager(homeDir, defaultCwd, customBin string) *Manager {
 	return m
 }
 
-// ResolveBinary finds the `claude` executable.
+// ResolveBinary finds the `claude` executable. A path given with --claude-bin is the only place looked at (the
+// extension always names one: the user's, else where the installer puts it), like the app; no flag = search.
 func (m *Manager) ResolveBinary() (string, error) {
-	candidates := []string{}
 	if m.BinPath != "" {
-		candidates = append(candidates, m.BinPath)
+		if fi, err := os.Stat(m.BinPath); err == nil && !fi.IsDir() {
+			return m.BinPath, nil
+		}
+		return "", fmt.Errorf("claude CLI not found at %s (install Claude Code, or set its path)", m.BinPath)
 	}
+	candidates := []string{}
 	if env := os.Getenv("CLAUDE_BIN"); env != "" {
 		candidates = append(candidates, env)
 	}

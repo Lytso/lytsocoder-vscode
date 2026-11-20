@@ -261,6 +261,13 @@
 .acc-btn:active {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
+/* SectionButton(danger = true): Sign out */
+.acc-btn.danger {
+  color: var(--error);
+}
+.acc-btn.danger:hover {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
 /* SectionButton(primary = accent): Surface(shape 12dp, accent), white 12.5sp semibold, padding 14 × 7 */
 .acc-btn-primary {
   padding: 7px 14px;

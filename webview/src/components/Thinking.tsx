@@ -10,12 +10,16 @@ export const clearThoughtState = () => expanded.clear();
 export function ThinkingAccordion(props: { id: string; text: string; durationMs: number | null | undefined; streaming: boolean }) {
   const [open, setOpen] = createSignal(expanded.get(props.id) ?? props.streaming);
   let manual = expanded.has(props.id);
-  // auto-expand while the thought streams, unless the user toggled it
+  // open while the thought streams, closed again once it is done (only the one being written stays open, so the
+  // earlier thoughts of a long reply don't fill the chat), unless the user toggled it. The app gets the closing for
+  // free: its finished message is a new item whose accordion starts closed.
   createEffect(
     on(
       () => props.streaming,
-      (s) => {
-        if (s && !manual) setOpen(true);
+      (s, was) => {
+        if (manual) return;
+        if (s) setOpen(true);
+        else if (was) setOpen(false);
       },
     ),
   );

@@ -454,7 +454,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
   })();
 
-  const opts = { openUrl: platform.openUrl, openFile: platform.openFile };
+  // projectDir: the folder open in this window (Claude's "This project" MCP servers and memory)
+  const opts = { openUrl: platform.openUrl, openFile: platform.openFile, projectDir: () => platform.workspaceFolders()[0]?.path ?? null };
   host = new AppHost(
     {
       AGY: new AgyBackend(bridge, kv, log, opts),
@@ -498,6 +499,7 @@ export function activate(context: vscode.ExtensionContext) {
       binPath: bridge.opts.binPath,
       extensionDir: path.join(context.extensionPath, 'dist', 'chrome-extension'),
       openFolder: (p) => void vscode.env.openExternal(vscode.Uri.file(p)),
+      openUrl: platform.openUrl,
       copy: platform.copy,
       log,
       mcpPort: mcp.port,

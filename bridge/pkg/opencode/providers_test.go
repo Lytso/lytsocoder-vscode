@@ -2,6 +2,7 @@ package opencode
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -176,7 +177,7 @@ func TestMcpServersGoIntoTheConfig(t *testing.T) {
 	}
 }
 
-func TestBinaryPathTildeAndFallback(t *testing.T) {
+func TestBinaryPathTildeOnly(t *testing.T) {
 	home := t.TempDir()
 	bin := filepath.Join(home, ".opencode", "bin", "opencode")
 	_ = os.MkdirAll(filepath.Dir(bin), 0755)
@@ -186,9 +187,9 @@ func TestBinaryPathTildeAndFallback(t *testing.T) {
 	if got, err := NewManager(home, home, "~/.opencode/bin/opencode").ResolveBinary(); err != nil || got != bin {
 		t.Fatalf("tilde path: %q %v", got, err)
 	}
-	// a path that does not exist falls back to the usual folders
-	if got, err := NewManager(home, home, "~/nope/opencode").ResolveBinary(); err != nil || got != bin {
-		t.Fatalf("fallback: %q %v", got, err)
+	// a given path that does not exist is "not installed": no other folder is looked at
+	if got, err := NewManager(home, home, "~/nope/opencode").ResolveBinary(); err == nil || !errors.Is(err, errNotInstalled) {
+		t.Fatalf("missing path: %q %v", got, err)
 	}
 }
 

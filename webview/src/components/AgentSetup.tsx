@@ -232,8 +232,8 @@ export function notInstalledText(
     case 'CLAUDE':
       return {
         title: 'Claude Code not found',
-        text: 'The claude CLI is not installed on this device yet. You can install it from Settings in one tap.',
-        action: 'Set up Claude Code',
+        text: 'The claude CLI is not installed on this device yet. AntiGem can install it for you.',
+        action: 'Install Claude Code',
         secondary: 'Check again',
         // ClaudeStatus.NOT_INSTALLED
         statusColor: '#F97316',
@@ -262,7 +262,7 @@ export function notInstalledText(
     default:
       return {
         title: 'Antigravity is not installed',
-        text: 'agy is not installed on this device.',
+        text: 'Antigravity (agy) is not installed yet. AntiGem can install it for you.',
         action: 'Install agy',
         secondary: null,
         statusColor: '#F97316',

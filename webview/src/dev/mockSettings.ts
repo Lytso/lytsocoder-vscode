@@ -322,6 +322,42 @@ function buildPages(enabled: AgentKind[] = ['AGY', 'CLAUDE', 'CODEX', 'OPENCODE'
         },
       ],
     },
+    // the CLI card every agent's Account & CLI page shows (here: an update that ran)
+    'claude.cli': {
+      id: 'claude.cli',
+      title: 'Account & CLI',
+      sections: [
+        {
+          id: 'cli',
+          title: '',
+          agent: 'CLAUDE',
+          items: [
+            {
+              kind: 'cli',
+              id: 'claude.cli.card',
+              label: 'Claude Code CLI',
+              state: 'installed',
+              version: '2.4.1',
+              path: '/home/dev/.local/bin/claude',
+              job: { kind: 'Update', running: false, ok: true, exitCode: 0, log: 'Current version: 2.4.0\nChecking for updates…\nSuccessfully updated from 2.4.0 to version 2.4.1' },
+              actions: [{ id: 'update', label: 'Check for updates' }],
+              refreshId: 'claude.refresh',
+              note: "Installed with Anthropic's official installer (claude.ai/install.sh) into ~/.local/bin. Check for updates runs `claude update`.",
+            },
+          ],
+        },
+        {
+          id: 'account',
+          title: '',
+          agent: 'CLAUDE',
+          items: [
+            { kind: 'info', id: 'claude.account', label: 'Account', value: 'Sign-in expired', tone: 'error', description: 'dev@example.com: Claude Code refused the sign-in. Sign in again.' },
+            { kind: 'button', id: 'claude.signin', label: 'Sign in', style: 'primary' },
+            { kind: 'button', id: 'claude.refresh', label: 'Check again' },
+          ],
+        },
+      ],
+    },
     claude: {
       id: 'claude',
       title: 'Claude Code',

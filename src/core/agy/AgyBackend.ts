@@ -647,6 +647,8 @@ export class AgyBackend implements AgentBackend {
       version: this.settings.cliVersion(),
       plan: this.settings.planLabel(),
       setupPage: 'agy.cli',
+      // the hub runs but nobody is signed in to Google: the chat offers "Sign in"
+      signedOut: this.hubState === 'online' && signedIn === false,
     };
   }
 

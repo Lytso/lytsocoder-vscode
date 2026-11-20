@@ -8,7 +8,7 @@ import { WorkingSpinner } from './WorkingSpinner';
 import { AgentSetupPrompt as SetupCard, notInstalledText } from './AgentSetup';
 import { JarvisChatWelcome, JarvisEventCard } from './JarvisCommand';
 import { jarvisDraft } from '../state/jarvis';
-import { openAgentSettings } from '../state/settings';
+import { agentNeed, installAgent, openSetupPage, signInAgent } from '../state/agentSetup';
 import { AgentMark, AgentPicker } from './AgentStatus';
 import { Fade, Icon } from '../ui/primitives';
 import { fontScale } from '../theme';
@@ -331,9 +331,10 @@ function EmptyChat() {
   const agent = () => state.chat.agent;
   const fresh = () => !state.chat.conversation || state.chat.conversation.title === 'New Chat';
   const status = () => agentStatus(agent());
+  // down, starting, not installed, or signed out (Antigravity's hub runs then: still not ready to chat)
   const notReady = () => {
     const s = status()?.state;
-    return s && s !== 'online';
+    return (s && s !== 'online') || !!agentNeed(status());
   };
   return (
     <div class="empty-scroll">
@@ -367,14 +368,15 @@ function EmptyChat() {
   );
 }
 
-/** The agent is not ready (ChatScreen's AgentSetupPrompt): starting, not installed (Install → its setup page), down. */
+/**
+ * The agent is not ready (ChatScreen's AgentSetupPrompt): starting, not installed (Install starts the install and opens
+ * its Account & CLI page with the progress), signed out / sign-in expired (Sign in), down (Retry).
+ */
 function AgentNotReady() {
   const agent = () => state.chat.agent;
   const s = () => agentStatus(agent());
-  const setup = () => {
-    const page = s()?.setupPage;
-    openAgentSettings(agent(), page && page !== agent().toLowerCase() ? { id: page, title: 'Setup' } : undefined);
-  };
+  const setup = () => openSetupPage(agent());
+  const expired = () => /expired/i.test(s()?.detail ?? '');
   return (
     <Switch
       fallback={
@@ -400,7 +402,7 @@ function AgentNotReady() {
           statusColor={stateColor('starting')}
         />
       </Match>
-      <Match when={s()?.state === 'not_installed'}>
+      <Match when={agentNeed(s()) === 'install'}>
         {(() => {
           const t = notInstalledText(agent());
           return (
@@ -409,13 +411,33 @@ function AgentNotReady() {
               title={t.title}
               text={t.text}
               actionLabel={t.action}
-              onAction={setup}
-              secondaryLabel={t.secondary === 'Check again' ? t.secondary : undefined}
+              onAction={() => installAgent(agent())}
+              secondaryLabel="Check again"
               onSecondary={() => send({ type: 'retryConnections' })}
               statusColor={t.statusColor}
             />
           );
         })()}
+      </Match>
+      <Match when={agentNeed(s()) === 'signIn'}>
+        <SetupCard
+          agent={agent()}
+          title={expired() ? `${agentLabel(agent())} sign-in expired` : `Sign in to ${agentLabel(agent())}`}
+          text={
+            expired()
+              ? (s()?.detail ?? 'Sign in again to keep chatting.')
+              : agent() === 'AGY'
+                ? 'Sign in with your Google account to chat with Antigravity.'
+                : agent() === 'CODEX'
+                  ? 'Sign in with your ChatGPT account to use Codex.'
+                  : 'Sign in with your Claude subscription or Anthropic Console account to use Claude Code.'
+          }
+          actionLabel="Sign in"
+          onAction={() => signInAgent(agent())}
+          secondaryLabel="Check again"
+          onSecondary={() => send({ type: 'retryConnections' })}
+          statusColor="#A855F7"
+        />
       </Match>
     </Switch>
   );

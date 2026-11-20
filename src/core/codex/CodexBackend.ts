@@ -383,6 +383,7 @@ export class CodexBackend implements AgentBackend {
       version: this.bridgeStatus?.installed && version ? version.replace(/^v/, '') : null,
       plan: this.account?.plan ? capitalize(this.account.plan) : null,
       setupPage: 'codex.cli',
+      signedOut: st === 'SIGNED_OUT',
     };
   }
 

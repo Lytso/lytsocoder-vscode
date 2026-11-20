@@ -517,6 +517,9 @@ function ItemView(props: { item: SettingItem; pageId: string; section: SettingsS
         <Match when={it().kind === 'quota'}>
           <QuotaItem label={as('quota').label === props.section.title ? '' : as('quota').label} groups={as('quota').groups} />
         </Match>
+        <Match when={it().kind === 'cli'}>
+          <CliCard item={as('cli')} pageId={props.pageId} />
+        </Match>
       </Switch>
     </div>
   );
@@ -851,6 +854,116 @@ function EditableText(props: { item: Extract<SettingItem, { kind: 'text' }>; pag
         </Show>
       </div>
     </>
+  );
+}
+
+/**
+ * An agent CLI's card (the app's AgyCliCard), the same for all four agents: title and refresh, the version and path
+ * (or why it is missing), Install / Check for updates (spinner while the job runs), the job's state and log, a footnote.
+ */
+function CliCard(props: { item: Extract<SettingItem, { kind: 'cli' }>; pageId: string }) {
+  const it = () => props.item;
+  const [confirm, setConfirm] = createSignal<{ id: string; label: string; text: string; danger: boolean } | null>(null);
+  const job = () => it().job ?? null;
+  const jobRunning = () => job()?.running === true;
+  const refreshing = () => (it().refreshId ? isBusy(props.pageId, it().refreshId!) : false) || it().state === 'checking';
+  // the dialog clears `confirm` before it runs onConfirm: the action to run is kept here
+  let confirmId = '';
+  const run = (a: Extract<SettingItem, { kind: 'cli' }>['actions'][number]) => {
+    if (a.confirm) {
+      confirmId = a.id;
+      setConfirm({ id: a.id, label: a.label, text: a.confirm, danger: a.style === 'danger' });
+    } else settingAction(props.pageId, a.id);
+  };
+  let box: HTMLPreElement | undefined;
+  createEffect(
+    on(
+      () => job()?.log,
+      () => {
+        if (!box) return;
+        const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+        if (atEnd) queueMicrotask(() => box && (box.scrollTop = box.scrollHeight));
+      },
+    ),
+  );
+  return (
+    <div class="cli-card">
+      <div class="cli-head">
+        <span class="cli-title">{it().label}</span>
+        <Show when={it().refreshId || it().state === 'checking'}>
+          <Show when={!refreshing()} fallback={<span class="mini-spinner cli-spin" />}>
+            <IconButton icon="refresh" size={30} iconSize={19} title="Check again" onClick={() => settingAction(props.pageId, it().refreshId!)} />
+          </Show>
+        </Show>
+      </div>
+      <Switch>
+        <Match when={it().state === 'checking'}>
+          <div class="cli-sub">Checking…</div>
+        </Match>
+        <Match when={it().state === 'installed'}>
+          <div class="cli-version">{it().version || 'Installed (version unknown)'}</div>
+        </Match>
+        <Match when={it().state === 'missing'}>
+          <div class="cli-warn">{it().message || 'Not installed on this machine.'}</div>
+        </Match>
+        <Match when={it().state === 'error'}>
+          <div class="cli-error">{it().message || 'Could not check the CLI.'}</div>
+        </Match>
+      </Switch>
+      <Show when={it().path}>
+        <div class="cli-path">{it().path}</div>
+      </Show>
+      <Show when={it().state === 'installed' && it().message}>
+        <div class="cli-sub">{it().message}</div>
+      </Show>
+      <Show when={it().actions.length}>
+        <div class="cli-actions">
+          <For each={it().actions}>
+            {(a) => {
+              const busy = () => a.busy === true || isBusy(props.pageId, a.id);
+              return (
+                <button
+                  class={a.style === 'primary' ? 'filled-btn accent' : 'outlined-btn'}
+                  classList={{ danger: a.style === 'danger', busy: busy() }}
+                  disabled={a.disabled || busy()}
+                  onClick={() => run(a)}
+                >
+                  <Show when={busy()} fallback={a.label}>
+                    <span class="mini-spinner" />
+                    {busyLabel(a.label)}
+                  </Show>
+                </button>
+              );
+            }}
+          </For>
+          <Show when={jobRunning()}>
+            <span class="mini-spinner cli-spin" />
+          </Show>
+        </div>
+      </Show>
+      <Show when={job()}>
+        <div class="cli-job" classList={{ failed: !jobRunning() && job()!.ok === false }}>
+          {`${job()!.kind}: `}
+          {jobRunning() ? 'running…' : job()!.ok === false ? `failed${job()!.exitCode != null ? ` (exit ${job()!.exitCode})` : ''}` : 'finished'}
+        </div>
+        <Show when={job()!.log?.trim()}>
+          <pre class="log-block cli-log" ref={(el) => (box = el, queueMicrotask(() => (el.scrollTop = el.scrollHeight)))}>
+            {job()!.log!.trim().split('\n').slice(-30).join('\n')}
+          </pre>
+        </Show>
+      </Show>
+      <Show when={it().note}>
+        <div class="cli-note">{it().note}</div>
+      </Show>
+      <ConfirmDialog
+        open={!!confirm()}
+        text={confirm()?.text ?? ''}
+        title={confirm()?.label ?? ''}
+        danger={confirm()?.danger}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => confirmId && settingAction(props.pageId, confirmId)}
+      />
+    </div>
   );
 }
 
@@ -1440,7 +1553,9 @@ function FormDialog(props: {
       },
     ),
   );
-  const valid = () => props.fields.every((f) => !f.required || (values[f.id] ?? '').trim());
+  // a field tied to another one (showWhen) shows only for some of its values (an MCP server's command or URL)
+  const shown = (f: SettingFormField) => !f.showWhen || f.showWhen.values.includes(values[f.showWhen.field] ?? '');
+  const valid = () => props.fields.every((f) => !f.required || !shown(f) || (values[f.id] ?? '').trim());
   const submit = () => {
     if (!valid()) return;
     // submit first: the caller may still need what opened the form
@@ -1473,7 +1588,7 @@ function FormDialog(props: {
       >
         <For each={props.fields}>
           {(f, i) => (
-            <div class="form-field">
+            <div class="form-field" style={{ display: shown(f) ? undefined : 'none' }}>
               <Switch>
                 <Match when={f.kind === 'toggle'}>
                   <div class="toggle-row">

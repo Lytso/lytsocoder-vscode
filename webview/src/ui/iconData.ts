@@ -99,6 +99,7 @@ import i_do_not_disturb_on from '@material-design-icons/svg/outlined/do_not_dist
 import i_verified_user from '@material-design-icons/svg/outlined/verified_user.svg?raw';
 import i_warning_amber from '@material-design-icons/svg/outlined/warning_amber.svg?raw';
 import i_play_arrow from '@material-design-icons/svg/outlined/play_arrow.svg?raw';
+import i_push_pin from '@material-design-icons/svg/outlined/push_pin.svg?raw';
 import i_shield from '@material-design-icons/svg/outlined/shield.svg?raw';
 import i_checklist from '@material-design-icons/svg/outlined/checklist.svg?raw';
 import i_palette from '@material-design-icons/svg/outlined/palette.svg?raw';
@@ -301,6 +302,7 @@ const raw = {
   verified_user: i_verified_user,
   warning_amber: i_warning_amber,
   play_arrow: i_play_arrow,
+  push_pin: i_push_pin,
 };
 
 export type IconName = keyof typeof raw;

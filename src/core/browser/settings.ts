@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { SettingItem, SettingsPage, SettingsSection } from '../../../shared/protocol';
 import type { Logger } from '../types';
 import { type BrowserBridge, BrowserError } from './bridge';
-import { EXTENSION_ID, HOST_NAME } from './constants';
+import { EXTENSION_ID, HOST_NAME, STORE_URL } from './constants';
 import { tildePath } from '../paths';
 import { defaultWrapperPath, extensionVersion, installExtensionFiles, register, registrationStatus, unregister } from './nativeHost';
 
@@ -25,6 +25,8 @@ export interface BrowserSettingsDeps {
   extensionDir: string;
   /** Reveal a folder in the OS file manager. */
   openFolder(p: string): void;
+  /** Open a web page in the default browser (the Chrome Web Store listing). */
+  openUrl(url: string): void;
   copy(text: string): void;
   log: Logger;
   /** Port of the MCP host (to explain which window serves the browser). */
@@ -52,7 +54,7 @@ export class BrowserSettings implements BrowserHooks {
     }
     switch (b.status) {
       case 'listening':
-        return { text: 'Waiting for the AntiGem extension (is Chrome open, the extension installed and the native host registered?)', tone: 'warn' };
+        return { text: 'Waiting for AntiGem Browser Bridge (is Chrome open, the extension installed and the native host registered?)', tone: 'warn' };
       case 'busy':
         return { text: b.error || 'Another VS Code window serves the browser link', tone: 'muted' };
       case 'unsupported':
@@ -113,26 +115,19 @@ export class BrowserSettings implements BrowserHooks {
       ],
     };
 
+    // 1 the Chrome Web Store (installs and updates by itself), 2 register the native host; the bundled copy with
+    // "Load unpacked" is the fallback (no Web Store, or a build newer than the store's)
     const setup: SettingsSection = {
       id: 'browser-setup',
       title: 'Set up',
       items: [
         {
           kind: 'button',
-          id: 'browser.install',
-          label: '1 · Open the extension folder',
-          description: `Copies the AntiGem extension${bundled ? ` ${bundled}` : ''} to ${tilde(INSTALL_DIR)}${installed ? ` (installed: ${installed}${installed !== bundled ? ' — update it, then press Reload on chrome://extensions' : ''})` : ''} and opens it`,
-          style: installed ? 'default' : 'primary',
-        },
-        {
-          kind: 'info',
-          id: 'browser.steps',
-          label: 'Load it in Chrome',
-          value:
-            `Open chrome://extensions (brave://extensions, edge://extensions), turn on Developer mode, press “Load unpacked” and pick ${tilde(INSTALL_DIR)}` +
-            // the macOS folder picker hides folders whose name starts with a dot
-            `${process.platform === 'darwin' ? ' (press Cmd+Shift+. in the folder picker to show the hidden .antigem folder)' : ''}. Its id must be ${EXTENSION_ID}. Pin the AntiGem icon to see its status.`,
-          tone: 'muted',
+          id: 'browser.store',
+          label: '1 · Install AntiGem Browser Bridge',
+          description:
+            'Opens its page in the Chrome Web Store: press “Add to Chrome” (it works in Edge, Brave and other Chromium browsers too). Pin the AntiGem icon to see its status.',
+          style: connected ? 'default' : 'primary',
         },
         {
           kind: 'button',
@@ -141,7 +136,6 @@ export class BrowserSettings implements BrowserHooks {
           description: `Lets the extension start AntiGem's native host (${HOST_NAME}) in ${installedBrowsers.length ? installedBrowsers.map((b) => b.name).join(', ') : 'your Chromium browsers'}. Registered: ${regText}`,
           style: registered.length && reg.wrapperCurrent && registered.every((b) => b.manifestOk) ? 'default' : 'primary',
         },
-        { kind: 'button', id: 'browser.copyPath', label: 'Copy the extension folder path', description: tilde(INSTALL_DIR) },
         ...(registered.length
           ? [
               {
@@ -157,6 +151,32 @@ export class BrowserSettings implements BrowserHooks {
               },
             ]
           : []),
+      ],
+    };
+
+    // fallback: the copy bundled with this extension, loaded by hand (no Chrome Web Store)
+    const manual: SettingsSection = {
+      id: 'browser-manual',
+      title: 'Can’t use the Chrome Web Store?',
+      description: 'Install the copy that comes with AntiGem instead (then register it with step 2 above).',
+      items: [
+        {
+          kind: 'button',
+          id: 'browser.install',
+          label: 'Open the extension folder',
+          description: `Copies the AntiGem extension${bundled ? ` ${bundled}` : ''} to ${tilde(INSTALL_DIR)}${installed ? ` (installed: ${installed}${installed !== bundled ? ' — update it, then press Reload on chrome://extensions' : ''})` : ''} and opens it`,
+        },
+        {
+          kind: 'info',
+          id: 'browser.steps',
+          label: 'Load it in Chrome',
+          value:
+            `Open chrome://extensions (brave://extensions, edge://extensions), turn on Developer mode, press “Load unpacked” and pick ${tilde(INSTALL_DIR)}` +
+            // the macOS folder picker hides folders whose name starts with a dot
+            `${process.platform === 'darwin' ? ' (press Cmd+Shift+. in the folder picker to show the hidden .antigem folder)' : ''}. Its id must be ${EXTENSION_ID}. Pin the AntiGem icon to see its status.`,
+          tone: 'muted',
+        },
+        { kind: 'button', id: 'browser.copyPath', label: 'Copy the extension folder path', description: tilde(INSTALL_DIR) },
       ],
     };
 
@@ -185,7 +205,7 @@ export class BrowserSettings implements BrowserHooks {
       ],
     };
 
-    return { id: 'browser', title: 'Browser', sections: [status, setup, { id: 'browser-blocklist', title: 'Safety', items: blockItems }, test] };
+    return { id: 'browser', title: 'Browser', sections: [status, setup, manual, { id: 'browser-blocklist', title: 'Safety', items: blockItems }, test] };
   }
 
   async change(_page: string, id: string, value: unknown) {
@@ -203,6 +223,9 @@ export class BrowserSettings implements BrowserHooks {
 
   async action(_page: string, id: string): Promise<string | void> {
     switch (id) {
+      case 'browser.store':
+        this.d.openUrl(STORE_URL);
+        return 'Opened AntiGem Browser Bridge in the Chrome Web Store: press “Add to Chrome”, then Register with Chrome (step 2)';
       case 'browser.install': {
         const dir = installExtensionFiles(this.d.extensionDir, INSTALL_DIR);
         this.d.openFolder(dir);

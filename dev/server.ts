@@ -143,7 +143,8 @@ const platform: Platform = {
   },
 };
 
-const opts = { openUrl: platform.openUrl, openFile: platform.openFile };
+// projectDir: the folder open in this window (Claude's "This project" MCP servers and memory)
+const opts = { openUrl: platform.openUrl, openFile: platform.openFile, projectDir: () => platform.workspaceFolders()[0]?.path ?? null };
 const host = new AppHost(
   {
     AGY: new AgyBackend(bridge, kv, log, opts),
@@ -186,6 +187,7 @@ host.attachBrowser(
     // the Chrome extension's own repository next to this one (edits show without a build)
     extensionDir: process.env.ANTIGEM_CHROME_EXTENSION ?? path.join(ROOT, '..', 'antigem-chrome-extension'),
     openFolder: (p) => log(`[dev] openFolder ${p}`),
+    openUrl: platform.openUrl,
     copy: platform.copy,
     log,
     mcpPort: mcp.port,

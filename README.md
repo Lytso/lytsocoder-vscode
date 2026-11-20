@@ -136,8 +136,9 @@ There is no voice on the desktop; everything else works like the app.
   - A tab can be locked while the agent works on it, so stray clicks don't interfere.
 - **Private connection:** Chrome talks to VS Code through **Chrome native messaging** and a per-user local socket.
   There is no open network port.
-- **Setup:** *Settings → Browser*. Open the extension folder, *Load unpacked* in `chrome://extensions`, then
-  *Register with Chrome*.
+- **Setup:** *Settings → Browser*. Install [AntiGem Browser Bridge](https://chromewebstore.google.com/detail/antigem-browser-bridge/kbdjcdlfeoijcchepbldpldeaeijgibi) from the Chrome Web Store, then
+  *Register with Chrome*. Without the Web Store: open the extension folder there and *Load unpacked* it in
+  `chrome://extensions`.
 - **Needed for:** the *Browser* MCP and plugins that use the browser (for example Google Flow). Everything else works
   without it. The VSIX ships a copy; its source is the [AntiGem Browser Bridge](https://github.com/Santoshkurmi/antigem-browser-extension) repository.
 
@@ -244,7 +245,6 @@ on Windows it uses a named pipe and the registry, and has not been tested on a W
 - The phone app's terminal MCP and Android-only tools are not part of the desktop version.
 - With several VS Code windows open, the first window runs the built-in MCP servers, Jarvis, plugins and the browser
   link for all of them.
-- The Chrome extension is installed with *Load unpacked*; it is not in the Chrome Web Store yet.
 - *Connect phone* is tested on Linux. On macOS and Windows it is written for them (the SSH key file, the admin prompt,
   the Wi-Fi announcement) but not tested on a real PC yet; if the phone does not list the PC, type the address shown in
   *Settings → Connect phone*.
@@ -264,7 +264,7 @@ AntiGem comes in three parts that link to each other:
 |---|---|---|
 | **AntiGem** (Android app) | The coding agents, a Linux terminal, an editor and a browser on your phone. With **Connect to PC** it also uses the agents of a PC that runs AntiGem for VS Code. | [Santoshkurmi/antigem](https://github.com/Santoshkurmi/antigem) |
 | **AntiGem for VS Code** | The same agents and chat in a VS Code sidebar. Its **Connect phone** lets the app on your phone use them. | [Santoshkurmi/antigem_vscode_extension](https://github.com/Santoshkurmi/antigem_vscode_extension) · install: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=santoshkurmi.antigem-vscode-extension), [Open VSX](https://open-vsx.org/extension/santoshkurmi/antigem-vscode-extension) |
-| **AntiGem Browser Bridge** (Chrome extension) | Lets agents in AntiGem for VS Code use your real Chrome. Not needed by the Android app, which has its own browser. | [Santoshkurmi/antigem-browser-extension](https://github.com/Santoshkurmi/antigem-browser-extension) · not in the Chrome Web Store yet: installed with *Load unpacked* from AntiGem for VS Code |
+| **AntiGem Browser Bridge** (Chrome extension) | Lets agents in AntiGem for VS Code use your real Chrome. Not needed by the Android app, which has its own browser. | [Santoshkurmi/antigem-browser-extension](https://github.com/Santoshkurmi/antigem-browser-extension) · install: [Chrome Web Store](https://chromewebstore.google.com/detail/antigem-browser-bridge/kbdjcdlfeoijcchepbldpldeaeijgibi) (or *Load unpacked* from AntiGem for VS Code) |
 
 ## Links
 

@@ -23,7 +23,8 @@ import {
 import { ComposerChip, RangeName, selectionLabel } from './Attachments';
 import { Collapse, Dialog, Icon, type IconName } from '../ui/primitives';
 import { isRunning } from './Feed';
-import { alpha } from '../util/format';
+import { agentLabel, alpha } from '../util/format';
+import { agentNeed, notReadyText } from '../state/agentSetup';
 import { pathBaseName } from '../util/paths';
 import { quotaPillWindow } from '../theme';
 import { openAgentSettings, openSettings, setThemePanelOpen } from '../state/settings';
@@ -261,9 +262,10 @@ export function InputBar() {
   };
   // the editor's selection goes with a message, it is not one by itself
   const canSend = () => text().trim().length > 0 || attachments().length > 0;
+  // online and nothing to do first (not installed, signed out / sign-in expired)
   const agentReady = () => {
-    const s = state.agents.find((a) => a.kind === state.chat.agent)?.state;
-    return !s || s === 'online';
+    const st = state.agents.find((a) => a.kind === state.chat.agent);
+    return (!st || st.state === 'online') && !agentNeed(st);
   };
 
   const autosize = () => {
@@ -301,7 +303,9 @@ export function InputBar() {
     const atts = sel ? [sel, ...attachments().filter((a) => !sameAtt(a, sel))] : attachments();
     if (!t && !atts.length) return;
     if (!agentReady()) {
-      showToast('The agent is not ready yet. Start it to send messages.', 'warning');
+      // what to do about it (Install / Sign in / Reconnect) is on the card or banner above the box
+      const st = state.agents.find((a) => a.kind === state.chat.agent);
+      showToast(notReadyText(state.chat.agent, st, agentLabel(state.chat.agent)), 'warning');
       return;
     }
     // clear the box (and this chat's draft) BEFORE sending: the first message of a new chat gives it its id, and that
@@ -312,6 +316,9 @@ export function InputBar() {
       setMentions([]);
       setAttachments([]);
       setPopup(null);
+      // the selection went with this message: the next one leaves it out until the selection changes (the editor still
+      // shows the same lines selected, so it was offered again and sent with every next message)
+      if (sel) setExcludedKey(offerKey());
     });
     drafts.delete(key);
     mentionDrafts.delete(key);

@@ -26,6 +26,11 @@ export interface AgentStatus {
   plan?: string | null;
   /** Settings page that installs / signs in / fixes this agent ('agy.cli', 'claude.cli'…), for "Install" buttons. */
   setupPage?: string | null;
+  /**
+   * Installed but nobody is signed in, or the sign-in expired: the chat shows "Sign in" instead of an error. The
+   * page's sign-in button is `<agent>.signin` (agy.signin, claude.signin, codex.signin); sign-out `<agent>.signout`.
+   */
+  signedOut?: boolean | null;
 }
 
 export interface WorkspaceFolder {
@@ -224,7 +229,11 @@ export interface SettingFormField {
   placeholder?: string | null;
   value?: string | null;
   options?: SettingOption[];
+  /** Must be filled (only checked while the field is shown). */
   required?: boolean;
+  /** Shown only while the form's field `field` has one of `values` (an MCP server's command for type stdio, its URL
+   *  for http / sse). A hidden field's value is still sent. */
+  showWhen?: { field: string; values: string[] } | null;
 }
 
 export type SettingItem =
@@ -281,6 +290,31 @@ export type SettingItem =
       accent?: string | null;
       /** Tiles: Material icon name. */
       icon?: string | null;
+    }
+  /**
+   * An agent CLI's card (the app's AgyCliCard), the same on every agent's Account & CLI page: the title with a refresh
+   * icon, the version and path (or "not installed" / why it could not be checked), its buttons (Install / Check for
+   * updates / Restart: settingAction {id: action.id}), the install / update job with its log, and a footnote.
+   */
+  | {
+      kind: 'cli';
+      id: string;
+      /** "Claude Code CLI" */
+      label: string;
+      state: 'checking' | 'installed' | 'missing' | 'error';
+      /** Installed version ("2.1.3"); null: unknown. */
+      version?: string | null;
+      /** Where the binary is (or would be installed). */
+      path?: string | null;
+      /** Why it is missing / could not be checked, or a note on its state ("server running"). */
+      message?: string | null;
+      /** The install / update running or last run. */
+      job?: { kind: string; running: boolean; ok?: boolean | null; exitCode?: number | null; log?: string | null } | null;
+      actions: { id: string; label: string; style?: 'primary' | 'danger' | 'default'; confirm?: string | null; disabled?: boolean; busy?: boolean }[];
+      /** The refresh icon's settingAction id (check the CLI again); null: no icon. */
+      refreshId?: string | null;
+      /** How it is installed / updated (small text at the bottom). */
+      note?: string | null;
     }
   /** Opens a sub-page (the view sends requestSettings {page: id}). */
   | { kind: 'page'; id: string; label: string; description?: string | null; icon?: string | null; badge?: string | null }

@@ -5,7 +5,7 @@ import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js';
 import { agentStatus, send, state } from '../state/store';
 import { agentLabel } from '../util/format';
 import { Collapse, Icon } from '../ui/primitives';
-import { openAgentSettings } from '../state/settings';
+import { agentNeed, installAgent, signInAgent } from '../state/agentSetup';
 
 export function ConnectionBanner() {
   const status = () => agentStatus(state.chat.agent);
@@ -24,14 +24,14 @@ export function ConnectionBanner() {
     ),
   );
   onCleanup(() => clearTimeout(timer));
-  const connecting = () => retrying() || status()?.state === 'starting';
-  // not installed (any more): the way to install it, never an error bubble
-  const missing = () => status()?.state === 'not_installed';
-  const visible = () => state.chat.order.length > 0 && (down() || connecting() || missing()) && !!status();
-  const install = () => {
-    const page = status()?.setupPage;
-    openAgentSettings(state.chat.agent, page && page !== state.chat.agent.toLowerCase() ? { id: page, title: 'Setup' } : undefined);
-  };
+  // not installed (any more) or signed out / sign-in expired: the way to fix it, never only an error
+  const need = () => agentNeed(status());
+  const missing = () => need() === 'install';
+  const signIn = () => need() === 'signIn';
+  const connecting = () => !need() && (retrying() || status()?.state === 'starting');
+  const visible = () => state.chat.order.length > 0 && (down() || connecting() || !!need()) && !!status();
+  const install = () => installAgent(state.chat.agent);
+  const expired = () => signIn() && /expired/i.test(status()?.detail ?? '');
   const name = () => agentLabel(state.chat.agent);
   const reconnect = () => {
     setRetrying(true);
@@ -47,13 +47,21 @@ export function ConnectionBanner() {
             <span class="conn-spinner" />
           </Show>
           <span class="conn-text">
-            {connecting() ? `Connecting to ${name()}...` : missing() ? `${name()} is not installed` : `${name()} Disconnected`}
-            <Show when={!connecting() && !missing() && status()?.detail}>
+            {connecting()
+              ? `Connecting to ${name()}...`
+              : missing()
+                ? `${name()} is not installed`
+                : signIn()
+                  ? expired()
+                    ? `${name()} sign-in expired`
+                    : `Sign in to ${name()}`
+                  : `${name()} Disconnected`}
+            <Show when={!connecting() && !need() && status()?.detail}>
               <span class="conn-detail"> · {status()!.detail}</span>
             </Show>
           </span>
         </span>
-        <Show when={!connecting() && !missing()}>
+        <Show when={!connecting() && !need()}>
           <button class="conn-retry" onClick={reconnect}>
             <Icon name="refresh_f" size={13} />
             Reconnect
@@ -63,6 +71,12 @@ export function ConnectionBanner() {
           <button class="conn-retry" onClick={install}>
             <Icon name="download" size={13} />
             Install
+          </button>
+        </Show>
+        <Show when={signIn()}>
+          <button class="conn-retry" onClick={() => signInAgent(state.chat.agent)}>
+            <Icon name="login" size={13} />
+            Sign in
           </button>
         </Show>
       </div>

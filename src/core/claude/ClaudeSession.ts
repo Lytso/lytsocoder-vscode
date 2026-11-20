@@ -222,7 +222,7 @@ export class ClaudeSession {
       return `Switch this chat to ${this.b.modelLabel(this.pendingSwitch.modelId)}? Claude Code restarts and the whole conversation${tokens} is sent again without cache. A new chat is usually the better choice.`;
     }
     if (this.queuedRestart) return `Switches to ${this.b.modelLabel(this.queuedRestart)} after this reply`;
-    if (this.transcript.needsLogin && !providerOf(this.model)) return 'Claude Code is signed out: sign in in Settings → Agents → Claude Code.';
+    if (this.transcript.needsLogin && !providerOf(this.model)) return 'Your Claude Code sign-in expired: sign in again (Sign in above the box, or Settings → Claude Code → Account & CLI).';
     return null;
   }
 
@@ -489,8 +489,10 @@ export class ClaudeSession {
           }
           this.endCompactingNotice();
           if (typeof data.fast_mode_state === 'string') this.fastMode = data.fast_mode_state;
-          // a lost sign-in: the account state changed
-          if (this.transcript.needsLogin) void this.b.loadStatus();
+          // a lost sign-in: "Sign in" shows at once and the account state is read again; a reply that worked after
+          // one means the sign-in is fine again
+          if (this.transcript.needsLogin) void this.b.signInLost();
+          else if (data.is_error !== true && !providerOf(this.model)) this.b.signInOk();
           void this.requestTitleOnce();
           this.b.afterTurn(this.id);
           this.b.indexChat(this.id, this.transcript.toChatMessages());

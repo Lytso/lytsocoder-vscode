@@ -866,51 +866,56 @@ export class ClaudeSettings implements AgentSettingsProvider {
     }
   }
 
+  /** The CLI card (the same card on every agent's Account & CLI page). */
   private cliItems(): SettingItem[] {
     const c = this.b.cli;
     const st = this.b.status();
     const job = this.cliJob;
     const running = job?.running === true;
-    const items: SettingItem[] = [
+    const actions: Extract<SettingItem, { kind: 'cli' }>['actions'] = [];
+    if (c)
+      actions.push(
+        c.installed
+          ? { id: 'update', label: running && job?.kind === 'update' ? 'Checking…' : 'Check for updates', disabled: running }
+          : { id: 'install', label: running ? 'Installing…' : 'Install Claude Code', style: 'primary', disabled: running },
+      );
+    return [
       {
-        kind: 'info',
-        id: 'claude.cli.state',
+        kind: 'cli',
+        id: 'claude.cli.card',
         label: 'Claude Code CLI',
-        value: !c ? (st.state === 'starting' ? 'Checking…' : 'Could not check') : c.installed ? (st.version ?? 'Installed') : 'Not installed',
-        tone: !c ? (st.state === 'starting' ? 'muted' : 'error') : c.installed ? 'ok' : 'warn',
-        description: !c ? (st.state === 'starting' ? null : (st.detail ?? null)) : (c.bin_path ?? null),
+        state: !c ? (st.state === 'starting' ? 'checking' : 'error') : c.installed ? 'installed' : 'missing',
+        version: c?.installed ? st.version : null,
+        path: c?.bin_path ?? null,
+        message: !c ? (st.state === 'starting' ? null : (st.detail ?? null)) : c.installed ? null : 'Claude Code is not installed on this machine.',
+        job: job
+          ? { kind: job.kind === 'update' ? 'Update' : 'Install', running, ok: running ? null : job.exit_code === 0, exitCode: job.exit_code ?? null, log: job.log ? String(job.log) : null }
+          : null,
+        actions,
+        refreshId: 'claude.refresh',
+        note:
+          process.platform === 'win32'
+            ? "Installed with Anthropic's official installer (claude.ai/install.ps1). Check for updates runs `claude update`."
+            : "Installed with Anthropic's official installer (claude.ai/install.sh) into ~/.local/bin. Check for updates runs `claude update`.",
       },
     ];
-    if (c)
-      items.push(
-        c.installed
-          ? { kind: 'button', id: 'update', label: running ? 'Checking…' : 'Check for updates', disabled: running }
-          : { kind: 'button', id: 'install', label: running ? 'Installing…' : 'Install Claude Code', style: 'primary', disabled: running },
-      );
-    if (job) {
-      items.push({
-        kind: 'info',
-        id: 'job',
-        label: job.kind === 'update' ? 'Update' : 'Install',
-        value: running ? 'running…' : job.exit_code === 0 ? 'done' : `failed (exit ${job.exit_code ?? '?'})`,
-        tone: running ? 'warn' : job.exit_code === 0 ? 'ok' : 'error',
-      });
-      if (job.log) items.push({ kind: 'text', id: 'log', label: 'Log', value: String(job.log).split('\n').slice(-30).join('\n'), multiline: true, code: true, rows: 10, disabled: true });
-    }
-    return items;
   }
 
   private accountItems(): SettingItem[] {
     const cli = this.b.cli;
     const a = cli?.auth;
+    // a reply failed with a sign-in error although `claude auth status` still says signed in
+    const expired = a?.loggedIn === true && this.b.status().signedOut === true;
     const account: SettingItem[] = [
       {
         kind: 'info',
         id: 'claude.account',
         label: 'Account',
-        value: !cli ? '…' : !cli.installed ? 'Install Claude Code first' : a?.loggedIn ? a.email || 'Signed in' : cli.auth_error ? 'Unknown' : 'Not signed in',
-        tone: a?.loggedIn ? 'ok' : cli?.installed ? 'warn' : 'muted',
-        description: a?.loggedIn
+        value: !cli ? '…' : !cli.installed ? 'Install Claude Code first' : expired ? 'Sign-in expired' : a?.loggedIn ? a.email || 'Signed in' : cli.auth_error ? 'Unknown' : 'Not signed in',
+        tone: expired ? 'error' : a?.loggedIn ? 'ok' : cli?.installed ? 'warn' : 'muted',
+        description: expired
+          ? `${a?.email ? `${a.email}: ` : ''}Claude Code refused the sign-in. Sign in again.`
+          : a?.loggedIn
           ? [a.subscriptionType ? `Plan: ${planLabel(a.subscriptionType)}` : null, a.authMethod ? `via ${a.authMethod}` : null].filter(Boolean).join(' · ') || null
           : (cli?.auth_error ?? null),
       },
@@ -922,7 +927,7 @@ export class ClaudeSettings implements AgentSettingsProvider {
       account.push({ kind: 'button', id: 'claude.signin.manual', label: 'Browser can’t return here? Open the code page', disabled: !this.login.manual_url });
       account.push({ kind: 'button', id: 'claude.signin.code', label: 'Enter the code', form: [{ id: 'code', label: 'Code from the code page', kind: 'text', placeholder: 'code#state', required: true }] });
       account.push({ kind: 'button', id: 'claude.signin.cancel', label: 'Cancel sign-in' });
-    } else if (a?.loggedIn) account.push({ kind: 'button', id: 'claude.signout', label: 'Sign out', style: 'danger', confirm: 'Sign out of Claude Code?' });
+    } else if (a?.loggedIn && !expired) account.push({ kind: 'button', id: 'claude.signout', label: 'Sign out', style: 'danger', confirm: 'Sign out of Claude Code?' });
     else if (cli?.installed)
       account.push({
         kind: 'button',
@@ -1277,6 +1282,7 @@ export class ClaudeSettings implements AgentSettingsProvider {
           this.stopLogin();
           await this.b.loadStatus();
           if (st.state === 'success') {
+            this.b.signInOk();
             void this.b.loadInfo(true);
             void this.b.loadUsage(true);
             this.b.notify('info', `Signed in to Claude${this.b.cli?.auth?.email ? ` as ${this.b.cli.auth.email}` : ''}`);

@@ -335,8 +335,12 @@ function ToolRow(props: { call: ToolCall }) {
     const c = state.chat.conversationId;
     if (!c) return;
     send({ type: 'toolAction', conversationId: c, toolId: t().id, action: 'terminate' });
-    setTerminated({ command: t().command });
+    // "Command Terminated" (new instructions, or stop the turn) only where the stop ends just this command and the reply
+    // goes on: Antigravity. Claude Code and OpenCode (and Codex, mostly) stop the whole reply, as in the app: a dialog
+    // asking what to tell the model then came after the chat had already stopped.
+    if (state.chat.agent === 'AGY') setTerminated({ command: t().command });
   };
+  const stopTitle = () => (state.chat.agent === 'AGY' ? 'Stop command' : 'Stop command (stops the reply)');
   const output = createMemo(() => {
     const o = t().output;
     if (!o) return { text: '', more: 0 };
@@ -381,7 +385,7 @@ function ToolRow(props: { call: ToolCall }) {
         </Show>
         {/* the running command's stop button (AgentToolCallCard.kt: BASH only) */}
         <Show when={running() && type() === 'BASH'}>
-          <span class="tool-stop" role="button" title="Stop command" onClick={terminate}>
+          <span class="tool-stop" role="button" title={stopTitle()} onClick={terminate}>
             <Icon name="stop" size={12} />
           </span>
         </Show>

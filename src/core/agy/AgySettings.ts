@@ -748,7 +748,8 @@ export class AgySettings implements AgentSettingsProvider {
     ]);
     let config: any = {};
     try {
-      config = JSON.parse(cfg.content || '{}');
+      // agy reads it with // and /* */ comments and trailing commas too (a hand-edited file): so does this
+      config = JSON.parse(stripJsonc(cfg.content || '{}'));
     } catch {
       // a file that isn't JSON is never written over
       config = { mcpServers: {} };
@@ -1102,38 +1103,38 @@ export class AgySettings implements AgentSettingsProvider {
     }
   }
 
+  /** The CLI card (the same card on every agent's Account & CLI page). */
   private cliItems(): SettingItem[] {
     const c = this.cli;
     const running = c?.job?.running === true;
-    const v = this.cliVersion();
-    const items: SettingItem[] = [
+    const actions: Extract<SettingItem, { kind: 'cli' }>['actions'] = [];
+    if (c && !c.error)
+      actions.push(
+        c.installed
+          ? { id: 'update', label: running && c.job?.kind === 'update' ? 'Checking…' : 'Check for updates', disabled: running }
+          : { id: 'install', label: running ? 'Installing…' : 'Install agy', style: 'primary', disabled: running },
+      );
+    const j = c?.job;
+    return [
       {
-        kind: 'info',
-        id: 'agy.cli.state',
+        kind: 'cli',
+        id: 'agy.cli.card',
         label: 'Antigravity CLI (agy)',
-        value: !c ? 'Checking…' : c.error ? 'Could not check' : c.installed ? (v ?? 'Installed') : 'Not installed',
-        tone: !c ? 'muted' : c.error ? 'error' : c.installed ? 'ok' : 'warn',
-        description: c?.error ? c.error : c?.path || null,
+        state: !c ? 'checking' : c.error ? 'error' : c.installed ? 'installed' : 'missing',
+        version: c?.installed ? this.cliVersion() : null,
+        path: c?.path || null,
+        message: c?.error ? c.error : c && !c.installed ? 'agy is not installed on this machine.' : null,
+        job: j
+          ? { kind: j.kind === 'update' ? 'Update' : 'Install', running: j.running === true, ok: j.running ? null : j.exit_code === 0, exitCode: j.exit_code ?? null, log: j.log ? String(j.log) : null }
+          : null,
+        actions,
+        refreshId: 'agy.account.refresh',
+        note:
+          process.platform === 'win32'
+            ? 'On Windows, install the Antigravity CLI from antigravity.google, then restart the bridge. Check for updates runs `agy update`.'
+            : "Installed with Google's official installer (antigravity.google/cli/install.sh) into ~/.local/bin. Check for updates runs `agy update`; restart the bridge afterwards so the hub uses the new agy.",
       },
     ];
-    if (c && !c.error)
-      items.push(
-        c.installed
-          ? { kind: 'button', id: 'update', label: running && c.job?.kind === 'update' ? 'Checking…' : 'Check for updates', disabled: running }
-          : { kind: 'button', id: 'install', label: running ? 'Installing…' : 'Install agy', style: 'primary', disabled: running },
-      );
-    if (c?.job) {
-      items.push({
-        kind: 'info',
-        id: 'job',
-        label: c.job.kind === 'update' ? 'Update' : 'Install',
-        value: c.job.running ? 'running…' : c.job.exit_code === 0 ? 'done' : `failed (exit ${c.job.exit_code ?? '?'})`,
-        tone: c.job.running ? 'warn' : c.job.exit_code === 0 ? 'ok' : 'error',
-      });
-      if (c.job.log)
-        items.push({ kind: 'text', id: 'log', label: 'Log', value: String(c.job.log).split('\n').slice(-30).join('\n'), multiline: true, code: true, rows: 10, disabled: true });
-    }
-    return items;
   }
 
   private accountItems(): SettingItem[] {
@@ -1195,16 +1196,7 @@ export class AgySettings implements AgentSettingsProvider {
 
   private cliPage(): SettingsPage {
     const sections: SettingsSection[] = [
-      {
-        id: 'cli',
-        title: '',
-        agent: 'AGY',
-        description:
-          process.platform === 'win32'
-            ? 'On Windows, install the Antigravity CLI from antigravity.google, then restart the bridge. Check for updates runs `agy update`.'
-            : "Installed with Google's official installer (antigravity.google/cli/install.sh) into ~/.local/bin. Check for updates runs `agy update`; restart the bridge afterwards so the hub uses the new agy.",
-        items: this.cliItems(),
-      },
+      { id: 'cli', title: '', agent: 'AGY', items: this.cliItems() },
       { id: 'account', title: '', agent: 'AGY', items: this.accountItems() },
     ];
     const usage = this.usageItems();
@@ -1513,4 +1505,27 @@ export class AgySettings implements AgentSettingsProvider {
     if (this.loginPoll) clearInterval(this.loginPoll);
     if (this.cliPoll) clearInterval(this.cliPoll);
   }
+}
+
+/** JSON with comments (// and /* *\/) and trailing commas → plain JSON. Strings are left as they are. */
+function stripJsonc(text: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '"') {
+      const start = i++;
+      while (i < text.length && text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
+      out += text.slice(start, ++i);
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end < 0 ? text.length : end + 2;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1');
 }

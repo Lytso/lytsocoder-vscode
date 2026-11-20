@@ -338,13 +338,33 @@ export function agentFlags(enabled: string[] | undefined): string[] {
   return out;
 }
 
-/** Bridge flags for the CLI paths set in Settings → Agents → CLI locations. */
-export function cliPathArgs(paths: Partial<Record<'AGY' | 'CLAUDE' | 'CODEX' | 'OPENCODE', string>> | undefined): string[] {
-  const p = paths ?? {};
-  const out: string[] = [];
-  if (p.AGY) out.push('--bin', p.AGY);
-  if (p.CLAUDE) out.push('--claude-bin', p.CLAUDE);
-  if (p.CODEX) out.push('--codex-bin', p.CODEX);
-  if (p.OPENCODE) out.push('--opencode-bin', p.OPENCODE);
-  return out;
+type CliAgent = 'AGY' | 'CLAUDE' | 'CODEX' | 'OPENCODE';
+
+/**
+ * Where each agent's CLI is by default: where its installer (and the bridge's Install button) puts it. As in the app
+ * (AuthPreferences.DEFAULT_*_BINARY_PATH), the bridge runs exactly this file, or the path set in Settings → Agents →
+ * CLI locations; it never looks anywhere else. Missing = "not installed" with an Install button.
+ */
+export function defaultCliPaths(): Record<CliAgent, string> {
+  const home = os.homedir();
+  const local = (name: string) => path.join(home, '.local', 'bin', name);
+  if (process.platform === 'win32') {
+    // Claude Code's and agy's installers use ~/.local/bin there too; Codex and OpenCode come from npm on Windows
+    const npm = path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'npm');
+    return { AGY: local('agy.exe'), CLAUDE: local('claude.exe'), CODEX: path.join(npm, 'codex.cmd'), OPENCODE: path.join(npm, 'opencode.cmd') };
+  }
+  return { AGY: local('agy'), CLAUDE: local('claude'), CODEX: local('codex'), OPENCODE: path.join(home, '.opencode', 'bin', 'opencode') };
+}
+
+/** The CLI the bridge runs for each agent: the path set in Settings → Agents → CLI locations, else the default. */
+export function cliPaths(custom: Partial<Record<CliAgent, string>> | undefined): Record<CliAgent, string> {
+  const d = defaultCliPaths();
+  const c = custom ?? {};
+  return { AGY: c.AGY || d.AGY, CLAUDE: c.CLAUDE || d.CLAUDE, CODEX: c.CODEX || d.CODEX, OPENCODE: c.OPENCODE || d.OPENCODE };
+}
+
+/** Bridge flags naming every agent's CLI (always given: the bridge never searches PATH or other folders). */
+export function cliPathArgs(custom: Partial<Record<CliAgent, string>> | undefined): string[] {
+  const p = cliPaths(custom);
+  return ['--bin', p.AGY, '--claude-bin', p.CLAUDE, '--codex-bin', p.CODEX, '--opencode-bin', p.OPENCODE];
 }

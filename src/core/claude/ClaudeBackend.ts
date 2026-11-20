@@ -93,6 +93,11 @@ export class ClaudeBackend implements AgentBackend {
   cli: CliStatus | null = null;
   private runState: AgentStatus['state'] = 'starting';
   private runDetail: string | null = 'Checking Claude Code…';
+  /**
+   * A reply failed because the Claude sign-in expired. `claude auth status` keeps saying "logged in" with an expired
+   * login, so this is kept until a sign-in finishes or a later reply works.
+   */
+  private loginExpired = false;
   usage: UsageInfo | null = null;
   usageUpdatedAt = 0;
   usageError: string | null = null;
@@ -118,7 +123,7 @@ export class ClaudeBackend implements AgentBackend {
     private bridge: BridgeManager,
     readonly store: KeyValueStore,
     readonly log: Logger,
-    private opts: { openUrl: (url: string) => void } = { openUrl: () => undefined },
+    private opts: { openUrl: (url: string) => void; projectDir?: () => string | null } = { openUrl: () => undefined },
   ) {
     this.settings = new ClaudeSettings(this);
     this.pickerModel = store.get<string>('claude.model') ?? null;
@@ -150,9 +155,12 @@ export class ClaudeBackend implements AgentBackend {
     return this.bridge.authHeaders();
   }
 
-  /** The bridge's workspace folder (memory / MCP project scope). */
+  /**
+   * The project of the settings pages' "This project" (MCP servers, memory): the folder open in VS Code, else the
+   * bridge's folder (home). It used to be always home, so project servers were added to ~ instead of the project.
+   */
   workspaceDir(): string {
-    return this.bridge.opts.workspaceDir;
+    return this.opts.projectDir?.() || this.bridge.opts.workspaceDir;
   }
 
   openUrl(url: string) {
@@ -163,11 +171,15 @@ export class ClaudeBackend implements AgentBackend {
 
   status(): AgentStatus {
     const a = this.cli?.auth;
+    const expired = this.loginExpired && this.cli?.installed === true;
+    // installed, the sign-in state is known and nobody is signed in (or the sign-in expired): the chat offers "Sign in"
+    const signedOut = expired || (this.cli?.installed === true && !this.cli.auth_error && a?.loggedIn !== true);
     return {
       kind: 'CLAUDE',
       label: 'Claude Code',
-      state: this.runState,
-      detail: this.runDetail,
+      state: expired ? 'error' : this.runState,
+      detail: expired ? 'Your Claude Code sign-in expired. Sign in again to keep chatting.' : this.runDetail,
+      signedOut,
       account: a?.loggedIn ? (a.email ?? null) : null,
       // "2.1.322 (Claude Code)" → "2.1.322", as the app's Accounts dialog
       version: this.cli?.installed && this.cli.version ? this.cli.version.trim().split(/\s+/)[0] || null : null,
@@ -230,6 +242,29 @@ export class ClaudeBackend implements AgentBackend {
     this.runState = state;
     this.runDetail = detail;
     this.changed('status');
+  }
+
+  /**
+   * A reply failed with a sign-in error (expired / revoked login): show "Sign in" at once, then check again. Asking for
+   * the usage makes the CLI try to renew the login, and when that fails it forgets it, so the status read after it
+   * sees the sign-out (the app's refreshUsage(recheckSignIn = true)).
+   */
+  async signInLost() {
+    if (!this.loginExpired) {
+      this.loginExpired = true;
+      this.changed('status');
+      this.changed('settings');
+    }
+    await this.loadUsage(true);
+    await this.loadStatus();
+  }
+
+  /** A sign-in finished or a reply worked again: the sign-in is fine. */
+  signInOk() {
+    if (!this.loginExpired) return;
+    this.loginExpired = false;
+    this.changed('status');
+    this.changed('settings');
   }
 
   /** `claude --version` + `claude auth status` through the bridge (ClaudeAccountManager.refreshStatus). */
@@ -441,7 +476,9 @@ export class ClaudeBackend implements AgentBackend {
     if (this.refreshing) return;
     this.refreshing = true;
     this.changed('models');
-    void Promise.allSettled([this.loadInfo(true), this.loadUsage(true), this.loadProviders()]).then(() => {
+    // then the sign-in: Claude lists its models signed out too, so without it an expired login still looked usable
+    // (the usage call is what makes the CLI notice the expired login)
+    void Promise.allSettled([this.loadInfo(true), this.loadUsage(true).then(() => this.loadStatus()), this.loadProviders()]).then(() => {
       this.refreshing = false;
       this.changed('models');
     });

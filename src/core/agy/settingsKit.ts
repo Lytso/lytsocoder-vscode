@@ -343,6 +343,8 @@ export function mcpForm(init: {
       .map(([k, v]) => `${k}${sep}${v}`)
       .join('\n');
   const remoteTypes = init.remoteTypes ?? [{ value: 'http', label: 'Remote URL (HTTP)', description: 'A URL and optional headers' }];
+  const local = { field: 'type', values: ['stdio'] };
+  const remote = { field: 'type', values: remoteTypes.map((t) => t.value) };
   return [
     ...(init.nameLocked ? [] : [{ id: 'name', label: 'Name', kind: 'text' as const, value: init.name ?? '', placeholder: 'github', required: true }]),
     {
@@ -353,10 +355,11 @@ export function mcpForm(init: {
       options: [{ value: 'stdio', label: 'Command (stdio)', description: 'A command started on this machine' }, ...remoteTypes],
     },
     ...(init.extra ?? []),
-    { id: 'command', label: 'Command and arguments', kind: 'text', value: init.command ?? '', placeholder: 'npx -y @modelcontextprotocol/server-github' },
-    { id: 'env', label: 'Environment (KEY=value per line)', kind: 'multiline', value: pairs(init.env, '=') },
-    { id: 'url', label: 'URL', kind: 'text', value: init.url ?? '', placeholder: 'https://example.com/mcp' },
-    { id: 'headers', label: 'Headers (Name: value per line)', kind: 'multiline', value: pairs(init.headers, ': ') },
+    // only the fields of the chosen type show (the app's Local / Remote chips)
+    { id: 'command', label: 'Command and arguments', kind: 'text', value: init.command ?? '', placeholder: 'npx -y @modelcontextprotocol/server-github', required: true, showWhen: local },
+    { id: 'env', label: 'Environment (KEY=value per line)', kind: 'multiline', value: pairs(init.env, '='), showWhen: local },
+    { id: 'url', label: 'URL', kind: 'text', value: init.url ?? '', placeholder: 'https://example.com/mcp', required: true, showWhen: remote },
+    { id: 'headers', label: 'Headers (Name: value per line)', kind: 'multiline', value: pairs(init.headers, ': '), showWhen: remote },
   ];
 }
 

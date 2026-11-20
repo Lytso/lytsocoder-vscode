@@ -5,6 +5,8 @@ import path from 'node:path';
 /** The extension's id, pinned by the public `key` in chrome-extension/manifest.json (private key: ~/.antigem/chrome-extension.pem). */
 export const EXTENSION_ID = 'kbdjcdlfeoijcchepbldpldeaeijgibi';
 export const EXTENSION_ORIGIN = `chrome-extension://${EXTENSION_ID}/`;
+/** AntiGem Browser Bridge in the Chrome Web Store (same id as the unpacked copy: the native host allows both). */
+export const STORE_URL = `https://chromewebstore.google.com/detail/antigem-browser-bridge/${EXTENSION_ID}`;
 /** Native messaging host name (chrome.runtime.connectNative). */
 export const HOST_NAME = 'com.antigem.browser_bridge';
 /** Line protocol version between the extension and VS Code. */

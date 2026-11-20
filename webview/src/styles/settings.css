@@ -1495,3 +1495,70 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* An agent CLI's card (the app's AgyCliCard): title + refresh, version / path, buttons, job log, footnote */
+.cli-card {
+  display: flex;
+  flex-direction: column;
+}
+.cli-head {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}
+.cli-title {
+  flex: 1;
+  font-size: calc(14 * var(--sp));
+  font-weight: 700;
+}
+.cli-spin {
+  margin: 0 6px;
+}
+.cli-version {
+  font-size: calc(13 * var(--sp));
+  font-weight: 600;
+}
+.cli-sub {
+  font-size: calc(12.5 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 60%, transparent);
+}
+.cli-warn {
+  font-size: calc(12.5 * var(--sp));
+  color: var(--warning);
+}
+.cli-error {
+  font-size: calc(12 * var(--sp));
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+.cli-path {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: calc(11 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 60%, transparent);
+  overflow-wrap: anywhere;
+}
+.cli-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cli-job {
+  margin-top: 10px;
+  font-size: calc(12 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 60%, transparent);
+}
+.cli-job.failed {
+  color: var(--danger);
+}
+.cli-log {
+  max-height: 200px;
+}
+.cli-note {
+  margin-top: 8px;
+  font-size: calc(11 * var(--sp));
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--on-surface) 60%, transparent);
+}

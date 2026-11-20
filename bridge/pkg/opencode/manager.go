@@ -81,11 +81,17 @@ func (m *Manager) configPath() string { return filepath.Join(m.dataDir(), "openc
 
 // ResolveBinary finds the opencode executable: the flag, $OPENCODE_BIN, PATH, then the installer's usual folders
 // (the official install script puts it in ~/.opencode/bin, which is often not on the bridge's PATH).
+//
+// A path given with --opencode-bin is the only place looked at (the extension always names one: the user's, else
+// ~/.opencode/bin/opencode), like the app.
 func (m *Manager) ResolveBinary() (string, error) {
-	candidates := []string{}
 	if m.BinPath != "" {
-		candidates = append(candidates, m.BinPath)
+		if fi, err := os.Stat(m.BinPath); err == nil && !fi.IsDir() {
+			return m.BinPath, nil
+		}
+		return "", fmt.Errorf("%w at %s (install it, or set its path)", errNotInstalled, m.BinPath)
 	}
+	candidates := []string{}
 	if env := os.Getenv("OPENCODE_BIN"); env != "" {
 		candidates = append(candidates, env)
 	}
@@ -115,8 +121,11 @@ func (m *Manager) ResolveBinary() (string, error) {
 			return c, nil
 		}
 	}
-	return "", errors.New("opencode not found (install it with `curl -fsSL https://opencode.ai/v2/install | bash`, or pass --opencode-bin)")
+	return "", fmt.Errorf("%w (install it with `curl -fsSL https://opencode.ai/v2/install | bash`, or pass --opencode-bin)", errNotInstalled)
 }
+
+// errNotInstalled: ResolveBinary found no opencode. A start that failed with it is stale once opencode is there.
+var errNotInstalled = errors.New("opencode not found")
 
 // termuxPrefix is Termux's $PREFIX (…/files/usr), or "" when not on Android.
 func (m *Manager) termuxPrefix() string {
@@ -516,7 +525,8 @@ func (m *Manager) handleStatus(w http.ResponseWriter, r *http.Request) {
 	m.mu.Lock()
 	running := m.runningLocked() && m.starting == nil
 	starting := m.starting != nil
-	if m.startErr != nil && !running {
+	// "opencode not found" from a start before it was installed is not true any more
+	if m.startErr != nil && !running && !errors.Is(m.startErr, errNotInstalled) {
 		resp["error"] = m.startErr.Error()
 	}
 	if running {

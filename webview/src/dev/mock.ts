@@ -866,6 +866,12 @@ export function startMock(post: Post): (m: ViewToHost) => void {
           const a = agents.find((x) => x.kind === k);
           if (a) Object.assign(a, { state: 'not_installed', label: 'Not installed', detail: 'The CLI is not installed on this machine.', account: null, plan: null, version: null });
         }
+        // ?signedout=AGENT (default: Claude Code): installed but its sign-in expired (the Sign in card / banner)
+        if (params.has('signedout')) {
+          const k = (params.get('signedout') || 'CLAUDE').toUpperCase();
+          const a = agents.find((x) => x.kind === k);
+          if (a) Object.assign(a, { state: 'error', label: 'Sign in required', detail: 'Your Claude Code sign-in expired. Sign in again to keep chatting.', signedOut: true, account: null, plan: null });
+        }
         // ?offline=AGENT (default: the weather chat's Claude Code): that agent is down (the disconnected banner)
         if (params.has('offline')) {
           const k = (params.get('offline') || 'CLAUDE').toUpperCase();

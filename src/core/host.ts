@@ -14,6 +14,7 @@ import type { JarvisHooks, JarvisHostApi } from './jarvis/types';
 import type { BrowserHooks } from './browser/settings';
 import type { PluginHooks } from './plugins/types';
 import { selectionBlock } from './text';
+import { defaultCliPaths } from './bridge/BridgeManager';
 import type { PreviewServer } from './preview/server';
 import type { PhoneAccess } from './phone';
 import type { AgentBackend, ChatState, KeyValueStore, Logger } from './types';
@@ -572,27 +573,29 @@ export class AppHost {
     };
   }
 
-  /** Settings → Agents → CLI locations: the detected CLI of each agent, or a path the user sets. */
+  /**
+   * Settings → Agents → CLI locations: the CLI each agent runs. By default the fixed path its installer uses (as the
+   * app: nothing is searched for); the user may set another one. Empty = back to the default.
+   */
   private async cliLocationsSection(): Promise<SettingsSection> {
     const labels: Record<AgentKind, string> = { AGY: 'Antigravity CLI path (agy)', CLAUDE: 'Claude Code CLI path (claude)', CODEX: 'Codex CLI path (codex)', OPENCODE: 'OpenCode CLI path (opencode)' };
     const custom = this.store.get<Partial<Record<AgentKind, string>>>('cli.paths') ?? {};
+    const defaults = defaultCliPaths();
     const found = await this.platform.cliStatus().catch(() => ({}) as Awaited<ReturnType<Platform['cliStatus']>>);
     const tilde = tildePath;
     const items: SettingItem[] = AppHost.ALL.filter((k) => this.backends[k] && this.isEnabled(k)).map((k) => {
       const f = found[k];
-      const detected = f?.installed && f.path ? tilde(f.path) : '';
-      const version = f?.version ? ` · ${f.version}` : '';
+      const used = custom[k] || defaults[k];
+      // what the running bridge reports for this path (it may still run an older path until it restarts)
+      const same = !!f?.path && path.resolve(f.path) === path.resolve(used);
+      const state = !f || !same ? '' : f.installed ? ` · installed${f.version ? ` (${f.version})` : ''}` : ' · not installed there yet';
       return {
         kind: 'text' as const,
         id: `cli.path.${k}`,
         label: labels[k],
-        description: custom[k]
-          ? `Your path${detected && tilde(custom[k]!) !== detected ? ` (detected: ${detected})` : ''}${version}`
-          : detected
-            ? `Detected automatically${version}`
-            : 'Not found on this PC — install it from the agent’s CLI page, or enter its path',
-        value: custom[k] ? tilde(custom[k]!) : detected,
-        placeholder: `~/.local/bin/${k === 'AGY' ? 'agy' : k.toLowerCase()}`,
+        description: custom[k] ? `Your path${state}. Clear it to use the default (${tilde(defaults[k])}).` : `Default path${state}`,
+        value: tilde(used),
+        placeholder: tilde(defaults[k]),
       };
     });
     items.push({
@@ -1022,12 +1025,13 @@ export class AppHost {
         if (msg.id.startsWith('cli.path.')) {
           const kind = msg.id.slice('cli.path.'.length) as AgentKind;
           const value = expandHome(String(msg.value ?? '').trim());
-          // the detected path itself = keep auto-detect
-          const detected = (await this.platform.cliStatus().catch(() => ({}) as Awaited<ReturnType<Platform['cliStatus']>>))[kind]?.path ?? '';
-          if (value && value === detected) {
+          // the default path itself (or empty) = no path of your own
+          if (!value || path.resolve(value) === path.resolve(defaultCliPaths()[kind])) {
             const paths = { ...(this.store.get<Partial<Record<AgentKind, string>>>('cli.paths') ?? {}) };
+            const had = !!paths[kind];
             delete paths[kind];
             this.store.set('cli.paths', paths);
+            if (had) this.toast(v, 'info', 'Back to the default path — restart the bridge to use it');
             this.refreshSettings();
             return;
           }

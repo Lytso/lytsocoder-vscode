@@ -313,58 +313,52 @@ export class CodexSettings implements AgentSettingsProvider {
 
   // --- Account & CLI (the app's Account, Usage limits and Server & install pages, on one page)
 
+  /** The CLI card (the same card on every agent's Account & CLI page). */
   private cliItems(): SettingItem[] {
     const b = this.b;
     const st = b.bridgeStatus ?? {};
-    const notInstalled = b.codexState === 'NOT_INSTALLED';
+    const state = b.codexState;
+    const notInstalled = state === 'NOT_INSTALLED';
     const job = b.cliJob;
     const jobRunning = job?.running === true;
-    const items: SettingItem[] = [
+    const broken = state === 'ERROR' || state === 'OFFLINE' || state === 'DISABLED' || state === 'OUTDATED';
+    const actions: Extract<SettingItem, { kind: 'cli' }>['actions'] = [];
+    if (notInstalled) actions.push({ id: 'install', label: jobRunning ? 'Installing…' : 'Install Codex', style: 'primary', disabled: jobRunning });
+    else if (st.installed) {
+      actions.push({ id: 'update', label: jobRunning && job?.kind === 'update' ? 'Checking…' : 'Check for updates', disabled: jobRunning });
+      actions.push({ id: 'restart', label: 'Restart Codex', disabled: jobRunning, confirm: 'Restart Codex? Replies that are running end.' });
+    }
+    return [
       {
-        kind: 'info',
-        id: 'version',
+        kind: 'cli',
+        id: 'codex.cli.card',
         label: 'Codex CLI',
-        value: notInstalled ? 'Not installed' : [st.version ? `Codex ${st.version}` : null, st.running ? 'running' : st.installed ? 'starts when needed' : null].filter(Boolean).join(' · ') || STATE_LABEL[b.codexState],
-        tone: notInstalled ? 'warn' : b.codexState === 'ERROR' || b.codexState === 'OFFLINE' || b.codexState === 'DISABLED' || b.codexState === 'OUTDATED' ? 'error' : b.codexState === 'CHECKING' ? 'muted' : 'ok',
-        description: st.binary ?? null,
+        state: notInstalled ? 'missing' : state === 'CHECKING' && !st.installed ? 'checking' : st.installed ? 'installed' : 'error',
+        version: st.installed && st.version ? `Codex ${st.version}` : null,
+        path: st.binary ?? null,
+        message: notInstalled
+          ? 'Codex is not installed on this machine.'
+          : st.error && state !== 'READY' && state !== 'SIGNED_OUT'
+            ? st.error
+            : broken && !st.installed
+              ? STATE_LABEL[state]
+              : st.installed
+                ? st.running
+                  ? 'Running'
+                  : 'Starts when needed'
+                : null,
+        job: job
+          ? { kind: job.kind === 'update' ? 'Update' : 'Install', running: jobRunning, ok: jobRunning ? null : job.exit_code === 0, exitCode: job.exit_code ?? null, log: job.log ?? null }
+          : null,
+        actions,
+        refreshId: 'codex.refresh',
+        note: st.termux_package
+          ? 'Installed as the Termux package (pkg install codex). Restarting Codex ends replies that are running; it keeps its chats and sign-in in ~/.codex.'
+          : process.platform === 'win32'
+            ? 'Not installed from here on Windows: in a terminal run npm install -g @openai/codex, then restart the bridge.'
+            : `Installs OpenAI's official ${process.platform === 'darwin' ? 'macOS' : 'Linux'} build into ~/.local/bin. Restarting Codex ends replies that are running; it keeps its chats and sign-in in ~/.codex.`,
       },
     ];
-    if (notInstalled)
-      items.push({
-        kind: 'button',
-        id: 'install',
-        label: jobRunning ? 'Installing…' : 'Install Codex',
-        style: 'primary',
-        disabled: jobRunning,
-        description: st.termux_package
-          ? 'Installs the Termux package (pkg install codex).'
-          : process.platform === 'win32'
-            ? 'Not from here on Windows: in a terminal run npm install -g @openai/codex, then restart the bridge.'
-            : `Downloads OpenAI's official ${process.platform === 'darwin' ? 'macOS' : 'Linux'} build into ~/.local/bin.`,
-      });
-    else if (st.installed) {
-      items.push({ kind: 'button', id: 'update', label: jobRunning ? 'Checking…' : 'Check for updates', disabled: jobRunning });
-      items.push({
-        kind: 'button',
-        id: 'restart',
-        label: 'Restart Codex',
-        disabled: jobRunning,
-        confirm: 'Restart Codex? Replies that are running end.',
-        description: 'Restarting ends replies that are running. Codex keeps its chats and sign-in in ~/.codex.',
-      });
-    }
-    if (job) {
-      items.push({
-        kind: 'info',
-        id: 'job',
-        label: job.kind === 'update' ? 'Update' : 'Install',
-        value: job.running ? 'running…' : job.exit_code === 0 ? 'done' : 'failed',
-        tone: job.running ? 'warn' : job.exit_code === 0 ? 'ok' : 'error',
-      });
-      if (job.log?.trim()) items.push({ kind: 'text', id: 'log', label: 'Log', value: job.log.trim().split('\n').slice(-30).join('\n'), multiline: true, code: true, rows: 10, disabled: true });
-    }
-    if (st.error && b.codexState !== 'READY' && b.codexState !== 'SIGNED_OUT') items.push({ kind: 'info', id: 'error', label: 'Error', value: '', description: st.error, tone: 'error' });
-    return items;
   }
 
   private accountItems(): SettingItem[] {

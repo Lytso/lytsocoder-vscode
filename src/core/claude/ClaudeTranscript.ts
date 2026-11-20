@@ -333,6 +333,10 @@ export class ClaudeTranscript {
         this.onStreamEvent(data);
         break;
       case 'assistant':
+        // the CLI marks a refused sign-in on the message itself ("Not logged in · Please run /login", "Failed to
+        // authenticate: OAuth session expired and could not be refreshed"); a provider's rejected key is not a Claude
+        // sign-in problem
+        if (data.error === 'authentication_failed' && !this.isCustomProvider()) this.needsLogin = true;
         if (obj(data.message)) this.onAssistant(data);
         break;
       case 'user':
@@ -652,7 +656,8 @@ export class ClaudeTranscript {
         const msg = errors.join('\n').trim() || str(r.result).trim() || str(r.subtype);
         const custom = this.isCustomProvider();
         // a provider's rejected key is not a Claude sign-in problem
-        if (!custom && /\/login|not logged in|authentication|OAuth token/i.test(msg)) this.needsLogin = true;
+        // "authenticat": "authentication_error" and "Failed to authenticate: OAuth session expired…"
+        if (!custom && /\/login|not logged in|authenticat|OAuth/i.test(msg)) this.needsLogin = true;
         // the CLI also writes the same text as a message of its own: show it once
         const last = turn.parts[turn.parts.length - 1];
         if (last?.kind === 'text' && last.text.trim() === msg.trim()) turn.parts.pop();

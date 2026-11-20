@@ -1,6 +1,7 @@
 // ui/agents/AccountsUi.kt: AccountsButton (the drawer footer's account avatars) and AccountsDialog (each agent's
-// account: who is signed in, its state and the next step). The view has no sign-in messages of its own: signing in,
-// out and managing an account happen on the agent's settings page, which the dialog's buttons open.
+// account: who is signed in, its state and the next step). As the app since 2.0.1: signed in → Sign out; otherwise the
+// entry's own step (Sign in, Install, Start, Retry); and a Settings button for every agent. Install and sign-in start
+// at once and open the agent's Account & CLI page (state/agentSetup.ts).
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { AgentKind } from '@shared/model';
@@ -8,6 +9,7 @@ import type { AgentStatus } from '@shared/protocol';
 import { AgentMark } from './AgentStatus';
 import { openAgentSettings } from '../state/settings';
 import { send, state } from '../state/store';
+import { installAgent, isSignedOut, signInAgent, signOutAgent } from '../state/agentSetup';
 import { agentAccent, agentLabel, alpha, stateColor, stateLabel } from '../util/format';
 import { Icon, IconButton, nextFrame, sp, type IconName } from '../ui/primitives';
 
@@ -28,22 +30,17 @@ function accountEntries(): AgentStatus[] {
   return ORDER.map((k) => state.agents.find((a) => a.kind === k)).filter((a): a is AgentStatus => !!a && a.state !== 'disabled');
 }
 
-const isReady = (s: AgentStatus) => s.state === 'online';
+const isReady = (s: AgentStatus) => s.state === 'online' && !isSignedOut(s);
 
 /** Transitional (starting / checking): the app offers no action then. */
 const isPending = (s: AgentStatus) => s.state === 'starting';
-
-/**
- * AgentStatusEntry.isSignedOut. The host has no signed-out state of its own: a missing sign-in is an error whose
- * detail says so (Claude Code: "Sign in required …", Codex: "Not signed in …").
- */
-const isSignedOut = (s: AgentStatus) => s.state === 'error' && /sign[ -]?in required|not signed in|signed out/i.test(s.detail ?? '');
 
 /** AgentStatusEntry.color */
 const entryColor = (s: AgentStatus) => (isSignedOut(s) ? SIGNED_OUT_COLOR : stateColor(s.state));
 
 /** AgentStatusEntry.label (the state, as the StatusChip shows it). */
-const entryLabel = (s: AgentStatus) => (isSignedOut(s) ? (s.kind === 'CODEX' ? 'Not signed in' : 'Sign in required') : stateLabel(s.state));
+const entryLabel = (s: AgentStatus) =>
+  isSignedOut(s) ? (/expired/i.test(s.detail ?? '') ? 'Sign-in expired' : s.kind === 'CODEX' ? 'Not signed in' : 'Sign in required') : stateLabel(s.state);
 
 /** The settings page of the agent (Settings → Agents → …). */
 const settingsPage = (k: AgentKind) => ({ id: k.toLowerCase(), title: agentLabel(k) });
@@ -125,6 +122,8 @@ interface SectionAction {
   icon?: IconName;
   /** A filled button in the agent's color (the entry's own action: sign in, install, start, retry). */
   primary?: boolean;
+  /** Red text (Sign out). */
+  danger?: boolean;
   run: () => void;
 }
 
@@ -172,12 +171,19 @@ export function AccountsDialog(props: { onOpenSettings?: () => void }) {
     close();
   };
 
-  /** The entry's own action (AgentStatusEntry.action): signing in and installing happen on the settings page. */
+  /** Runs a step that opens the agent's Account & CLI page (sign in, install): the dialog closes first. */
+  const setup = (run: () => void) => () => {
+    close();
+    props.onOpenSettings?.();
+    run();
+  };
+
+  /** The entry's own action (AgentStatusEntry.action): Sign in / Install start at once, the page shows the progress. */
   const entryAction = (s: AgentStatus): SectionAction | null => {
-    if (isSignedOut(s)) return { label: 'Sign in', primary: true, run: () => toSettings(s.kind) };
+    if (isSignedOut(s)) return { label: 'Sign in', primary: true, run: setup(() => signInAgent(s.kind)) };
     switch (s.state) {
       case 'not_installed':
-        return { label: s.kind === 'CLAUDE' || s.kind === 'AGY' ? 'Set up' : 'Install', primary: true, run: () => toSettings(s.kind) };
+        return { label: 'Install', primary: true, run: setup(() => installAgent(s.kind)) };
       case 'offline':
         return { label: 'Start', primary: true, run: retry };
       case 'error':
@@ -188,26 +194,16 @@ export function AccountsDialog(props: { onOpenSettings?: () => void }) {
   };
 
   const actions = (s: AgentStatus): SectionAction[] => {
-    const ready = isReady(s);
-    const own = ready ? null : entryAction(s);
-    const settings = (label: string): SectionAction => ({ label, icon: 'settings', run: () => toSettings(s.kind) });
-    const list: (SectionAction | null)[] = [own];
-    switch (s.kind) {
-      case 'AGY':
-        // in place of the app's "Manage plan" and "Sign out" (sign-out is on the Antigravity settings page here)
-        if (ready) list.push(settings('Antigravity settings'));
-        break;
-      case 'CLAUDE':
-        if (ready || !isPending(s)) list.push(settings('Claude settings'));
-        break;
-      case 'CODEX':
-        if (ready || !isPending(s)) list.push(settings('Codex settings'));
-        break;
-      case 'OPENCODE':
-        list.push(settings(ready ? 'Providers & settings' : 'OpenCode settings'));
-        break;
+    const list: SectionAction[] = [];
+    if (isReady(s)) {
+      // OpenCode has no sign-in of its own (each provider has its key)
+      if (s.kind !== 'OPENCODE') list.push({ label: 'Sign out', icon: 'logout', danger: true, run: () => signOutAgent(s.kind) });
+    } else if (!isPending(s)) {
+      const own = entryAction(s);
+      if (own) list.push(own);
     }
-    return list.filter((a): a is SectionAction => !!a);
+    list.push({ label: 'Settings', icon: 'settings', run: () => toSettings(s.kind) });
+    return list;
   };
 
   return (
@@ -226,7 +222,6 @@ export function AccountsDialog(props: { onOpenSettings?: () => void }) {
               <span class="acc-title">Accounts</span>
               <IconButton icon="close_o" size={30} iconSize={24} title="Close" color={alpha('var(--on-surface)', 0.6)} onClick={close} />
             </div>
-            <div class="acc-sub">Each agent signs in on its own.</div>
             <div class="acc-sections">
               <For each={accountEntries()}>{(s) => <AccountSection status={s} actions={actions(s)} />}</For>
               <Show when={!accountEntries().length}>
@@ -255,17 +250,15 @@ function AccountSection(props: { status: AgentStatus; actions: SectionAction[] }
   const facts = () => {
     const st = s();
     const v = st.version?.trim() ? `CLI ${(/\d+(\.\d+)+\S*/.exec(st.version) ?? [st.version.trim()])[0]}` : null;
-    const plan = isReady(st) ? st.plan?.trim() || null : null;
-    if (v || st.plan) return [plan, v].filter((x): x is string => !!x);
+    const plan = isReady(st) && st.kind !== 'OPENCODE' ? st.plan?.trim() || null : null;
+    if (v || plan) return [plan, v].filter((x): x is string => !!x);
     return readyParts().filter((t) => t.length <= 32);
   };
+  // the app shows only the account under the name (the state is the chip; its detail is the chip's tooltip)
   const subtitle = () => {
     const st = s();
-    if (!isReady(st)) return st.detail || null;
-    if (st.kind === 'OPENCODE') return 'No sign-in: each provider uses its own API key (free models need none).';
-    // a longer ready detail is a note (e.g. the sign-in state could not be read), not a fact chip
-    const note = readyParts().filter((t) => t.length > 32).join(' · ') || null;
-    return st.account || note || (st.kind === 'CODEX' ? 'Signed in' : null);
+    if (!isReady(st) || st.kind === 'OPENCODE') return null;
+    return st.account || null;
   };
   return (
     <div class="acc-section" style={{ '--acc': agentAccent(s().kind) }}>
@@ -277,7 +270,7 @@ function AccountSection(props: { status: AgentStatus; actions: SectionAction[] }
             <div class="acc-section-sub">{subtitle()}</div>
           </Show>
         </div>
-        <span class="acc-chip" style={{ '--chip': entryColor(s()) }}>
+        <span class="acc-chip" style={{ '--chip': entryColor(s()) }} title={s().detail ?? undefined}>
           <span class="acc-chip-dot" />
           <span>{entryLabel(s())}</span>
         </span>
@@ -293,7 +286,7 @@ function AccountSection(props: { status: AgentStatus; actions: SectionAction[] }
             <Show
               when={a.primary}
               fallback={
-                <button class="acc-btn" onClick={a.run}>
+                <button class="acc-btn" classList={{ danger: !!a.danger }} onClick={a.run}>
                   <Show when={a.icon}>
                     <Icon name={a.icon!} size={15} />
                   </Show>

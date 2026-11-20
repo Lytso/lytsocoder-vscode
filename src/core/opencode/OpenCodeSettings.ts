@@ -190,32 +190,6 @@ export class OpenCodeSettings implements AgentSettingsProvider {
     };
   }
 
-  private restartButton(id: string): SettingItem {
-    const running = this.b.ocStatus?.running === true;
-    return {
-      kind: 'button',
-      id,
-      label: running ? 'Restart OpenCode' : 'Start OpenCode',
-      description: 'Running replies stop when OpenCode restarts.',
-      confirm: running ? 'Restart OpenCode? Running replies stop.' : null,
-    };
-  }
-
-  private installButton(id: string): SettingItem {
-    const running = this.job?.running === true;
-    return {
-      kind: 'button',
-      id,
-      label: running ? 'Installing…' : 'Install OpenCode',
-      style: 'primary',
-      description:
-        process.platform === 'win32'
-          ? 'Not from here on Windows: in a terminal run npm install -g opencode-ai, then restart the bridge.'
-          : 'Downloads the official build (~250 MB) into ~/.opencode/bin. Or in a terminal: curl -fsSL https://opencode.ai/v2/install | bash',
-      disabled: running,
-    };
-  }
-
   // ------------------------------------------------------------------ pages
 
   /** Why OpenCode's pages can't be read now (null = they can). Waits a little while it is checked. */
@@ -693,40 +667,43 @@ export class OpenCodeSettings implements AgentSettingsProvider {
     const state = this.b.ocState;
     const installed = st.installed === true;
     const running = this.job?.running === true;
+    // the CLI card (the same card on every agent's Account & CLI page)
+    const actions: Extract<SettingItem, { kind: 'cli' }>['actions'] = [];
+    if (!installed && state === 'not_installed') actions.push({ id: 'install', label: running ? 'Installing…' : 'Install OpenCode', style: 'primary', disabled: running });
+    else if (installed) actions.push({ id: 'update', label: running && this.job?.kind === 'update' ? 'Checking…' : 'Check for updates', disabled: running });
+    if (state === 'ready')
+      actions.push(
+        st.running
+          ? { id: 'restart', label: 'Restart OpenCode', confirm: 'Restart OpenCode? Running replies stop.' }
+          : { id: 'restart', label: 'Start OpenCode' },
+      );
+    const server = st.running ? `Server running${st.uptime_seconds ? ` · up ${Math.round(st.uptime_seconds / 60)} min` : ''}` : st.starting ? 'Server starting…' : 'The server starts with the first chat';
+    const j = this.job;
     const items: SettingItem[] = [
       {
-        kind: 'info',
-        id: 'state',
-        label: 'OpenCode',
-        value: [STATE_LABELS[state], st.version, st.running ? 'server running' : null].filter(Boolean).join(' · '),
-        tone: state === 'ready' ? 'ok' : state === 'checking' ? 'muted' : state === 'not_installed' ? 'warn' : 'error',
-        description: state !== 'ready' && state !== 'checking' ? (this.b.status().detail ?? null) : null,
-      },
-      { kind: 'info', id: 'binary', label: 'Binary', value: st.binary || '—', tone: 'muted' },
-      {
-        kind: 'info',
-        id: 'server',
-        label: 'Server',
-        value: st.running ? `Running${st.uptime_seconds ? ` · up ${Math.round(st.uptime_seconds / 60)} min` : ''}` : st.starting ? 'Starting…' : 'Starts with the first chat',
-        tone: st.running ? 'ok' : 'muted',
+        kind: 'cli',
+        id: 'opencode.cli.card',
+        label: 'OpenCode CLI',
+        state: state === 'checking' && !installed ? 'checking' : installed ? 'installed' : state === 'not_installed' ? 'missing' : 'error',
+        version: installed ? (st.version ? `OpenCode ${st.version}` : null) : null,
+        path: st.binary || null,
+        message:
+          st.error && (state !== 'ready' || st.running === false)
+            ? st.error
+            : installed
+              ? server
+              : state === 'not_installed'
+                ? 'OpenCode is not installed on this machine.'
+                : (this.b.status().detail ?? null),
+        job: j ? { kind: j.kind === 'update' ? 'Update' : 'Install', running: j.running === true, ok: j.running ? null : j.exit_code === 0, exitCode: j.exit_code ?? null, log: j.log ?? null } : null,
+        actions,
+        refreshId: 'check',
+        note:
+          process.platform === 'win32'
+            ? 'Not installed from here on Windows: in a terminal run npm install -g opencode-ai, then restart the bridge. Running replies stop when OpenCode restarts.'
+            : 'Downloads the official build (~250 MB) into ~/.opencode/bin (or in a terminal: curl -fsSL https://opencode.ai/v2/install | bash). Running replies stop when OpenCode restarts.',
       },
     ];
-    if (st.error && (state !== 'ready' || st.running === false)) items.push({ kind: 'info', id: 'error', label: 'Last error', value: st.error, tone: 'error' });
-    if (!installed && state === 'not_installed') items.push(this.installButton('install'));
-    else if (installed) items.push({ kind: 'button', id: 'update', label: running ? 'Checking…' : 'Check for updates', disabled: running });
-    if (this.job) {
-      const j = this.job;
-      items.push({
-        kind: 'info',
-        id: 'job',
-        label: j.kind === 'update' ? 'Update' : 'Install',
-        value: j.running ? 'running…' : j.exit_code === 0 ? 'done' : 'failed',
-        tone: j.running ? 'warn' : j.exit_code === 0 ? 'ok' : 'error',
-      });
-      if (j.log?.trim()) items.push({ kind: 'text', id: 'log', label: 'Log', value: j.log.trim().split('\n').slice(-30).join('\n'), multiline: true, code: true, rows: 10, disabled: true });
-    }
-    if (state === 'ready') items.push(this.restartButton('restart'));
-    items.push({ kind: 'button', id: 'check', label: 'Check again' });
     const sections: SettingsSection[] = [{ id: 'cli', title: '', agent: 'OPENCODE', items }];
     if (st.logs?.length)
       sections.push({ id: 'logs', title: '', agent: 'OPENCODE', items: [{ kind: 'text', id: 'serverLog', label: 'Server log', value: st.logs.slice(-20).join('\n'), multiline: true, code: true, rows: 8, disabled: true }] });

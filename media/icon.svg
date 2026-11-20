@@ -1,1 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l2.6 6.1 6.4.6-4.9 4.2 1.5 6.3L12 16.4l-5.6 3.3 1.5-6.3L3 9.2l6.4-.6z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="29 29 50 50">
+  <!-- AntiGem "Prism" mark (the app's ic_launcher_foreground.xml) in one color for the activity bar: VS Code tints it,
+       so the facets are told apart by opacity only -->
+  <g fill="#000">
+    <!-- crown -->
+    <path d="M41 33 31 45h16.5z" fill-opacity=".8"/>
+    <path d="M41 33h13l-6.5 12z"/>
+    <path d="M54 33l-6.5 12h13z" fill-opacity=".9"/>
+    <path d="M54 33h13l-6.5 12z" fill-opacity=".7"/>
+    <path d="M67 33l-6.5 12H77z" fill-opacity=".55"/>
+    <!-- the seam of light between crown and base -->
+    <path d="M29.6 46.9h48.8a.6.6 0 0 1 0 1.2H29.6a.6.6 0 0 1 0-1.2z"/>
+    <!-- base -->
+    <path d="M31 50h16.5L54 75z" fill-opacity=".75"/>
+    <path d="M47.5 50H54v25z"/>
+    <path d="M54 50h6.5L54 75z" fill-opacity=".65"/>
+    <path d="M60.5 50H77L54 75z" fill-opacity=".5"/>
+  </g>
+</svg>

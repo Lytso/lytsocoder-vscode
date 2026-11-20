@@ -3,7 +3,7 @@
 // "Show N more"), each row with its agent-tinted icon, running dot, relative time and ⋮ menu.
 import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from 'solid-js';
 import type { AgentKind, Conversation } from '@shared/model';
-import { conversationAction, enabledAgents, openConversation, send, setUi, state } from '../state/store';
+import { conversationAction, enabledAgents, openConversation, pinnedIds, send, setPinned, setUi, showToast, state } from '../state/store';
 import { openSettings, setThemePanelOpen, themePanelOpen } from '../state/settings';
 import { Collapse, Dialog, DropdownMenu, Icon, type MenuItem } from '../ui/primitives';
 import { SearchChatsDialog, setSearchDialogOpen, splitMatch, useDeepSearch } from './SearchChats';
@@ -12,6 +12,9 @@ import { JARVIS_CYAN, JarvisBot } from './JarvisBot';
 import { jarvis, jarvisAction, setJarvisPanelOpen } from '../state/jarvis';
 import { exportChat } from '../state/exportFlow';
 import { agentAccent, agentChipLabel, alpha, relativeTime, workspaceName } from '../util/format';
+
+/** Group key of the pinned chats when grouping by workspace (can't clash with a folder name). */
+const PINNED_GROUP = '\u0000pinned';
 
 interface TreeItem {
   conv: Conversation;
@@ -86,12 +89,15 @@ export function Drawer(props: { open: boolean; onClose: () => void; onNotes?: ()
     }
     return m;
   });
-  const topLevel = createMemo(() =>
-    filtered().filter((c) => {
+  // pinned chats first (a stable sort: both parts keep their newest-first order)
+  const topLevel = createMemo(() => {
+    const pins = pinnedIds();
+    const roots = filtered().filter((c) => {
       const p = c.parentConversationId;
       return !p || p === c.id || !ids().has(p);
-    }),
-  );
+    });
+    return pins.size ? roots.sort((x, y) => Number(pins.has(y.id)) - Number(pins.has(x.id))) : roots;
+  });
   const tree = (roots: Conversation[], depth = 0): TreeItem[] => {
     const out: TreeItem[] = [];
     for (const conv of roots) {
@@ -104,8 +110,10 @@ export function Drawer(props: { open: boolean; onClose: () => void; onNotes?: ()
   };
   const groupMap = createMemo(() => {
     const m = new Map<string, Conversation[]>();
+    const pins = pinnedIds();
     for (const c of topLevel()) {
-      const g = c.workspaceUri ? workspaceName(c.workspaceUri) : 'General';
+      // grouped by workspace: pinned chats get their own "Pinned" group above the workspaces
+      const g = pins.has(c.id) ? PINNED_GROUP : c.workspaceUri ? workspaceName(c.workspaceUri) : 'General';
       m.set(g, [...(m.get(g) ?? []), c]);
     }
     return m;
@@ -363,8 +371,8 @@ export function Drawer(props: { open: boolean; onClose: () => void; onNotes?: ()
                     return (
                       <>
                         <div class="group-head" classList={{ clickable: chats().length > 5 }} onClick={() => chats().length > 5 && toggle()}>
-                          <Icon name={name === 'General' ? 'public' : 'folder'} size={15} />
-                          <span class="group-name">{name}</span>
+                          <Icon name={name === PINNED_GROUP ? 'push_pin' : name === 'General' ? 'public' : 'folder'} size={15} />
+                          <span class="group-name">{name === PINNED_GROUP ? 'Pinned' : name}</span>
                           <span class="group-count">{chats().length}</span>
                           <Show when={chats().length > 5}>
                             <span class="flex1" />
@@ -544,7 +552,15 @@ function ChatRow(props: { item: TreeItem; onSelect: () => void; onToggle: () => 
   };
   const [menu, setMenu] = createSignal(false);
   let menuBtn: HTMLButtonElement | undefined;
+  // only top-level chats pin (a sub-agent row follows its parent)
+  const pinned = () => !sub() && pinnedIds().has(c().id);
+  const togglePin = () => {
+    const on = !pinned();
+    setPinned(c().id, on);
+    showToast(on ? 'Chat pinned' : 'Chat unpinned', 'success');
+  };
   const items = (): MenuItem[] => [
+    ...(sub() ? [] : [{ label: pinned() ? 'Unpin' : 'Pin to top', icon: 'push_pin' as const, onClick: togglePin }]),
     { label: 'Copy Conversation ID', icon: 'copy', onClick: () => conversationAction(c().id, 'copyId') },
     { label: 'Fork Conversation', icon: 'call_split', iconColor: 'var(--primary)', onClick: () => conversationAction(c().id, 'fork') },
     { label: 'Rename', icon: 'edit_o', onClick: props.onRename },
@@ -607,6 +623,9 @@ function ChatRow(props: { item: TreeItem; onSelect: () => void; onToggle: () => 
               {props.item.children.length}
               <Icon name={props.item.expanded ? 'chevron_up' : 'chevron_down'} size={13} />
             </button>
+          </Show>
+          <Show when={pinned()}>
+            <Icon name="push_pin" size={12} class="chat-row-pin" title="Pinned" />
           </Show>
           <span class="chat-row-time">{relativeTime(c().updatedAt)}</span>
         </span>
