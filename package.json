@@ -3,7 +3,7 @@
   "displayName": "LytsoCoder",
   "description": "One chat UI for Antigravity (agy), Claude Code, Codex and OpenCode \u2014 LytsoCoder for VS Code (https://github.com/Lytso/LytsoCoder).",
   "publisher": "itslytso",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "GPL-3.0",
   "private": true,
   "engines": {
