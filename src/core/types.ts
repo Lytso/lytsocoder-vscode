@@ -75,6 +75,12 @@ export interface AgentBackend {
   selectModel(conversationId: string | null, modelId: string): void;
   /** The agent's `/` commands. */
   commands(): SlashCommandView[];
+  /**
+   * The `/` list follows the chat a view shows (the app's "/" menu follows the open chat's project): `folder` is its
+   * project path (null = none). `opened`: the `/` menu just opened, so skills added meanwhile are read again. Emit
+   * 'commands' when the list changed. Optional.
+   */
+  slashFolder?(folder: string | null, opened: boolean): void;
   /** Controls strip for a chat (null = defaults for the next new chat). Emit 'controls' when the defaults change. */
   controls?(conversationId: string | null): ControlChipView[];
   setControl?(conversationId: string | null, id: string, value: string): void | Promise<void>;

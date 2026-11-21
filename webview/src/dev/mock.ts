@@ -6,6 +6,7 @@
 import type { AgentKind, AiModel, ArtifactSnapshot, ChatAttachment, ChatMessage, Conversation, QueuedMessage, ToolCall } from '@shared/model';
 import type { AgentStatus, ApprovalView, ChatPatch, ControlChipView, HostToView, JarvisState, ModelsState, NoteView, QuestionView, SlashCommandView, ViewToHost } from '@shared/protocol';
 import { createMockSettings } from './mockSettings';
+import { mockCheckpointRequest, mockRestorePoints } from './mockCheckpoints';
 
 type Post = (m: HostToView) => void;
 
@@ -487,6 +488,8 @@ export function startMock(post: Post): (m: ViewToHost) => void {
           : null,
       });
       if (conversation?.agent === 'CODEX') setTimeout(() => current === cid && patch(cid, { notice: null }), 7000 * SPEED);
+      // project checkpoints: every prompt has a restore point
+      mockRestorePoints(post, cid, c.messages, (conversation?.agent ?? 'CLAUDE').toLowerCase());
     }, 450 * SPEED);
   };
 
@@ -1262,8 +1265,15 @@ export function startMock(post: Post): (m: ViewToHost) => void {
         }
         break;
       }
+      case 'checkpoint':
+        mockCheckpointRequest(post, m);
+        break;
       case 'forgetProject':
         savedProjects = savedProjects.filter((u) => u.replace(/^file:\/\//, '') !== m.path);
+        break;
+      // Agent memory: every block was saved; Undo undoes it
+      case 'memoryRequest':
+        setTimeout(() => post({ type: 'memoryResult', reqId: m.reqId, enabled: true, applied: { key: 'mock', found: true, action: 'saved', id: 'projects/nebula-weather-3f9a1c2b/card-sizes.md', undone: m.op === 'undo' } }), 300 * SPEED);
         break;
       case 'retryConnections': {
         const down = agents.filter((a) => a.state === 'offline' || a.state === 'error');
@@ -1412,8 +1422,10 @@ function showcaseHistory(cid: string): ChatMessage[] {
       tokenUsage: { promptTokens: 18_400, outputTokens: 1_120, cachedTokens: 42_000, cacheCreationTokens: 3_200, totalTokens: 64_720, durationMs: 33_000, isEstimated: false, model: 'anthropic/claude-opus-5-5', costUsd: 0.0912 },
       modelId: 'opus',
     },
-    { id: `${cid}-u2`, conversationId: cid, role: 'USER', content: 'Thanks! Now make the forecast cards a bit smaller.', toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 5 * MIN, contextSummary: 'The user is building a weather dashboard (index.html, style.css, app.js). Done: glass cards, aurora background, hourly canvas chart with high-DPI scaling. Next: smaller forecast cards.' },
-    { id: `${cid}-a2`, conversationId: cid, role: 'ASSISTANT', content: 'Done: the forecast cards are now `min-width: 72px` with `gap: 8px`, so all seven fit on a phone.\n\nMarkers quoted in code stay text: `<!-- error -->{"title":"Boom","userMessage":"x"}<!-- /error -->` and `<!-- tool_call:<id> -->`, also mid-sentence <!-- tool_call:abc_1 --> like this.', toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 6 * MIN },
+    { id: `${cid}-u2`, conversationId: cid, role: 'USER', content: 'Thanks! Now make the forecast cards a bit smaller.', sentContent: '<antigem-expansion command="">\n[AntiGem agent memory: from the app, not written by the user.]\n\n## Agent memory\nNo memories saved yet.\n</antigem-expansion>Thanks! Now make the forecast cards a bit smaller.', toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 5 * MIN, contextSummary: 'The user is building a weather dashboard (index.html, style.css, app.js). Done: glass cards, aurora background, hourly canvas chart with high-DPI scaling. Next: smaller forecast cards.' },
+    { id: `${cid}-a2`, conversationId: cid, role: 'ASSISTANT', content: 'Done: the forecast cards are now `min-width: 72px` with `gap: 8px`, so all seven fit on a phone.\n\nMarkers quoted in code stay text: `<!-- error -->{"title":"Boom","userMessage":"x"}<!-- /error -->` and `<!-- tool_call:<id> -->`, also mid-sentence <!-- tool_call:abc_1 --> like this.' +
+        // Agent memory: a block the chat shows as a chip (the mock answers memoryRequest)
+        `\n\n${fence}antigem-memory\nfile: card-sizes.md\nmode: passive\nscope: project\ndescription: Forecast cards are 72px wide so seven fit on a phone\n---\nForecast cards: min-width 72px, gap 8px (2026-11-21), so all seven fit on a phone.\n${fence}`, toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 6 * MIN },
   ];
 }
 

@@ -13,11 +13,18 @@ import type { NotesStore } from './mcp/notes';
 import type { JarvisHooks, JarvisHostApi } from './jarvis/types';
 import type { BrowserHooks } from './browser/settings';
 import type { PluginHooks } from './plugins/types';
+import type { MemoryHooks } from './memory/types';
 import { selectionBlock } from './text';
 import { defaultCliPaths } from './bridge/BridgeManager';
 import type { PreviewServer } from './preview/server';
 import type { PhoneAccess } from './phone';
 import type { AgentBackend, ChatState, KeyValueStore, Logger } from './types';
+import { RenderBundle } from './render/bundle';
+import { stemAction, stemChange, stemSettingsPage } from './render/settings';
+import { EgmManager } from './egm/manager';
+import { egmAction, egmChange, egmGuide, egmPage, egmRootItem } from './egm/settings';
+import { setupChatRequest, slashFolderOf } from './skills';
+import { checkpoints, CheckpointsHost, isCheckpointPage } from './checkpoints';
 
 /** What the embedding environment (VS Code or the dev server) provides. */
 const IMAGE_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp' };
@@ -36,6 +43,8 @@ export interface Platform {
   runInTerminal(command: string, cwd?: string | null): void;
   /** Open text in an editor tab (diffs, long outputs). */
   openText(title: string, content: string, language?: string | null): void;
+  /** Two versions side by side in a diff editor: a file on disk or text (left) against text (right, read-only). */
+  openDiff?(title: string, left: { path?: string | null; text?: string | null }, right: { text: string; name: string }): void;
   /** Open a file and select a line range. */
   revealRange(path: string, startLine: number, endLine: number): void;
   openInEditor(conversationId: string): void;
@@ -125,6 +134,12 @@ export class AppHost {
   private lastActive: string | null = null;
   /** Tells the user when a chat they sent finishes or needs them (and they are not looking at it). */
   private notifier: ChatNotifier;
+  /** Settings → STEM & diagrams (src/core/render): the render bundle, the chat's STEM blocks, what agents are told. */
+  private render: RenderBundle;
+  /** Settings → Agents → EGM (src/core/egm): install, settings and the `/egm` commands. */
+  private egm: EgmManager;
+  /** Project checkpoints (src/core/checkpoints): the chats' restore points, the restore sheet, Settings → Project checkpoints. */
+  private checkpoints: CheckpointsHost;
 
   constructor(
     private backends: Partial<Record<AgentKind, AgentBackend>>,
@@ -133,6 +148,30 @@ export class AppHost {
     private store: KeyValueStore,
   ) {
     this.settings = new HostSettings(store);
+    this.render = new RenderBundle(store, log, () => this.preview);
+    this.egm = new EgmManager(store, log);
+    this.settings.renderContext = () => this.render.promptSection();
+    this.settings.egm = this.egm;
+    this.checkpoints = new CheckpointsHost(checkpoints, {
+      conversations: () => this.rawConversations(),
+      openDiff: platform.openDiff && ((t, l, r) => platform.openDiff!(t, l, r)),
+      openText: (t, c, l) => platform.openText(t, c, l),
+      refreshPages: () => this.refreshPages((p) => p === 'root' || isCheckpointPage(p)),
+      log,
+    });
+    this.render.onChange(() => {
+      this.broadcast({ type: 'renderState', state: this.render.view() });
+      this.refreshPages((p) => p === 'stem');
+    });
+    let egmCommands = JSON.stringify(this.egm.slashItems());
+    this.egm.onChange(() => {
+      this.refreshPages((p) => p === 'egm' || p === 'agents');
+      // installed, removed, switched on / off: the `/` lists change
+      const now = JSON.stringify(this.egm.slashItems());
+      if (now === egmCommands) return;
+      egmCommands = now;
+      for (const b of this.active()) this.broadcast({ type: 'commands', agent: b.kind, commands: this.commandsFor(b.kind) });
+    });
     // once: the default look became "VS Code" (its own theme colors). Saved prefs always carry the mode (any pref
     // change saves them whole), so an install that was on the old default Auto moves to the new default.
     const saved = store.get<Record<string, unknown>>('ui.prefs');
@@ -289,6 +328,26 @@ export class AppHost {
         const id = this.activeViewId();
         if (id) this.views.get(id)?.port.post({ type: 'jarvisNavigate', screen: 'settings', settingsPage: page });
       },
+    });
+  }
+
+  // ------------------------------------------------------------------ Agent memory (src/core/memory)
+
+  private memory: MemoryHooks | null = null;
+
+  /** Agent memory: the memory text of a chat's first message, syncing chats, the chips, Settings → Agents → Agent memory. */
+  attachMemory(m: MemoryHooks) {
+    this.memory = m;
+    m.bind({
+      backend: (k) => this.backendFor(k),
+      allBackends: () => Object.values(this.backends).filter((b): b is AgentBackend => !!b),
+      conversations: () => this.rawConversations(),
+      isJarvisChat: (id) => this.jarvis?.isJarvisTarget(id, false, false) ?? false,
+      isShown: (id) => [...this.views.values()].some((v) => v.conversationId === id),
+      broadcast: (msg) => this.broadcast(msg),
+      refreshPages: () => this.refreshPages((p) => p === 'agents' || p === 'memory' || p.startsWith('memory.')),
+      openText: (title, content, language) => this.platform.openText(title, content, language),
+      workspaceFolder: () => this.platform.workspaceFolders()[0]?.path ?? null,
     });
   }
 
@@ -481,6 +540,7 @@ export class AppHost {
         this.settings.chatSection(),
         ...(this.browser ? [{ id: 'browser', title: '', items: [this.browser.rootItem()] } satisfies SettingsSection] : []),
         ...(this.plugins ? [{ id: 'plugins', title: '', items: [this.plugins.settings.rootItem()] } satisfies SettingsSection] : []),
+        { id: 'checkpoints', title: '', items: [this.checkpoints.settings.rootItem()] },
         ...(this.jarvis ? [{ id: 'jarvis', title: '', items: [this.jarvis.settings.rootItem()] } satisfies SettingsSection] : []),
         {
           id: 'system',
@@ -517,6 +577,10 @@ export class AppHost {
               },
             ],
           },
+          // EGM design reviews (src/core/egm), under the agents like the app's EgmEntryRow
+          { id: 'egm', title: '', items: [egmRootItem(this.egm)] },
+          // Agent memory & history (src/core/memory), the app's AgentMemoryEntryRow
+          ...(this.memory ? [{ id: 'memory', title: '', items: [this.memory.settings.rootItem()] }] : []),
           await this.cliLocationsSection(),
         ],
       };
@@ -533,6 +597,10 @@ export class AppHost {
     if (this.browser && (page === 'browser' || page.startsWith('browser.'))) return this.browser.page(page);
     if (this.phone && page === 'phone') return this.phone.page(page);
     if (this.plugins && (page === 'plugins' || page.startsWith('plugins.'))) return this.plugins.settings.page(page);
+    if (page === 'stem') return stemSettingsPage(this.render);
+    if (page === 'egm') return egmPage(this.egm);
+    if (isCheckpointPage(page)) return this.checkpoints.settings.page(page);
+    if (this.memory && (page === 'memory' || page.startsWith('memory.'))) return this.memory.settings.page(page);
     const own = this.settings.page(page);
     if (own) return own;
     const backend = this.backendForPage(page, '');
@@ -647,6 +715,11 @@ export class AppHost {
     for (const v of this.views.values()) if (v.settingsPage && (!light || cheap.has(v.settingsPage))) void this.postSettings(v);
   }
 
+  /** Re-sends only the open settings pages [match] picks (a download's progress must not rebuild an agent's page). */
+  private refreshPages(match: (page: string) => boolean) {
+    for (const v of this.views.values()) if (v.settingsPage && match(v.settingsPage)) void this.postSettings(v);
+  }
+
   /** Project picker: this window's folders, the saved projects, and folders recent chats ran in. */
   private async projects(): Promise<ProjectView[]> {
     // one entry per folder, however its link or path is written (file:///c%3A/… from VS Code, C:\… from an agent)
@@ -747,6 +820,7 @@ export class AppHost {
     const v = this.views.get(id);
     v?.unsubscribe?.();
     this.views.delete(id);
+    this.checkpoints.forgetView(id);
   }
 
   /** Conversation shown by a view (for "Open in editor"). */
@@ -808,6 +882,8 @@ export class AppHost {
     };
     v.port.post({ type: 'chat', conversationId, patch: reset });
     v.port.onTitle?.(conversationId ? (this.allConversations().find((c) => c.id === conversationId)?.title ?? 'Chat') : 'New Chat');
+    // the agent's "/" list follows the chat's project (src/core/skills/slashFolder.ts)
+    this.backendFor(agent)?.slashFolder?.(slashFolderOf(conversationId, this.rawConversations(), this.uiPrefs().lastProject, this.platform.workspaceFolders()), false);
     if (!conversationId) return;
     this.notifier.seen();
     const backend = this.backendFor(agent);
@@ -816,12 +892,16 @@ export class AppHost {
       return;
     }
     v.unsubscribe = backend.subscribe(conversationId, (state) => this.push(v, conversationId, state));
+    // Agent memory: catch up on turns that finished while no one followed this chat
+    this.memory?.opened(conversationId, agent);
   }
 
   private push(v: ViewState, conversationId: string, state: ChatState) {
     if (v.conversationId !== conversationId) return;
     // Jarvis' labelled news messages carry their parsed events (the view draws them as event cards)
     if (this.jarvis) state = { ...state, messages: this.jarvis.decorateMessages(conversationId, state.messages) };
+    // the user messages' restore points (project checkpoints), sent apart from the messages
+    this.checkpoints.onChat(v.id, (m) => v.port.post(m), conversationId, state);
     const patch: ChatPatch = {};
     let any = false;
     const order = state.messages.map((m) => m.id);
@@ -937,16 +1017,19 @@ export class AppHost {
         const others = msg.attachments.filter((a) => !selections.includes(a));
         const withSel = selections.length ? `${msg.text}${selectionBlock(selections)}` : msg.text;
         // a Jarvis chat carries Jarvis' hidden note (guide, rules, live context, mission) instead of the global context
-        const expanded = this.settings.expand(withSel);
+        // (and EGM's commands tell Jarvis to run the reviewers as task chats)
+        const expanded = this.settings.expand(withSel, this.jarvis?.isJarvisTarget(msg.conversationId, msg.isNew, msg.jarvis === true) ?? false);
         const jarvisText = this.jarvis?.wrapSend(msg.conversationId, msg.agent, expanded, msg.isNew, msg.jarvis === true) ?? null;
-        await backend.send({
+        const req = {
           conversationId: msg.conversationId,
           isNew: msg.isNew,
           text: jarvisText ?? this.settings.wrap(expanded, msg.isNew, msg.conversationId, msg.agent),
           attachments: others,
           modelId: msg.modelId,
           workspaceUri: msg.workspaceUri ?? this.platform.workspaceFolders()[0]?.uri ?? null,
-        });
+        };
+        // Agent memory (src/core/memory): a normal chat's first message also carries the memory text (it waits briefly)
+        await (this.memory && jarvisText == null ? this.memory.send(req, msg.agent, msg.text, (r) => backend.send(r)) : backend.send(req));
         return;
       }
       case 'stop':
@@ -983,6 +1066,9 @@ export class AppHost {
       case 'requestCommands':
         v.port.post({ type: 'commands', agent: msg.agent, commands: this.commandsFor(msg.agent) });
         return;
+      case 'slashMenuOpened':
+        this.backendFor(msg.agent)?.slashFolder?.(slashFolderOf(v.conversationId, this.rawConversations(), this.uiPrefs().lastProject, this.platform.workspaceFolders()), true);
+        return;
       case 'requestSettings':
         v.settingsPage = msg.page;
         await this.postSettings(v);
@@ -1006,8 +1092,23 @@ export class AppHost {
           this.refreshSettings();
           return;
         }
+        if (isCheckpointPage(msg.page)) {
+          await this.checkpoints.settings.change(msg.page, msg.id, msg.value, msg.rowId);
+          this.refreshSettings();
+          return;
+        }
+        if (this.memory && (msg.page === 'memory' || msg.page.startsWith('memory.'))) {
+          await this.memory.settings.change(msg.page, msg.id, msg.value, msg.rowId);
+          this.refreshSettings();
+          return;
+        }
         if (this.jarvis && (msg.page === 'jarvis' || msg.page.startsWith('jarvis.'))) {
           await this.jarvis.settings.change(msg.page, msg.id, msg.value, msg.rowId);
+          this.refreshSettings();
+          return;
+        }
+        // Settings → STEM & diagrams, Settings → Agents → EGM
+        if ((msg.page === 'stem' && stemChange(this.render, msg.id, msg.value)) || (msg.page === 'egm' && egmChange(this.egm, msg.id, msg.value))) {
           this.refreshSettings();
           return;
         }
@@ -1065,6 +1166,13 @@ export class AppHost {
         return;
       }
       case 'settingAction': {
+        // Skills → "Set up with AI": a new chat of the chosen agent with the setup request (src/core/skills)
+        const setup = setupChatRequest(msg.id, msg.values);
+        if (setup) {
+          if (!this.isEnabled(setup.agent)) throw new Error('That agent is turned off in Settings → Agents: turn it on, or pick another one.');
+          v.port.post({ type: 'startChat', ...setup });
+          return;
+        }
         let result: string | void | null = null;
         if (msg.id === 'conn.restart' || msg.id === 'cli.apply') {
           await this.platform.restartBridge();
@@ -1082,6 +1190,15 @@ export class AppHost {
           result = await this.browser.action(msg.page, msg.id, msg.rowId, msg.actionId, msg.values);
         } else if (this.plugins && (msg.page === 'plugins' || msg.page.startsWith('plugins.'))) {
           result = await this.plugins.settings.action(msg.page, msg.id, msg.rowId, msg.actionId, msg.values);
+        } else if (isCheckpointPage(msg.page)) {
+          result = await this.checkpoints.settings.action(msg.page, msg.id, msg.rowId, msg.actionId, msg.values, (m) => v.port.post(m));
+        } else if (this.memory && (msg.page === 'memory' || msg.page.startsWith('memory.'))) {
+          result = await this.memory.settings.action(msg.page, msg.id, msg.rowId, msg.actionId, msg.values);
+        } else if (msg.page === 'stem' || msg.page === 'egm') {
+          result =
+            msg.page === 'stem'
+              ? stemAction(this.render, msg.id)
+              : await egmAction(this.egm, msg.id, (u) => this.platform.openUrl(u), msg.rowId, msg.actionId, msg.values);
         } else {
           result = this.settings.action(msg.page, msg.id, msg.rowId, msg.actionId, msg.values);
           if (result === null) result = await this.backendForPage(msg.page, msg.id)?.settings?.action(msg.page, msg.id, msg.rowId, msg.actionId, msg.values);
@@ -1196,6 +1313,25 @@ export class AppHost {
         v.port.post({ type: 'mediaUrl', reqId: msg.reqId, url, error });
         return;
       }
+      // STEM & diagrams (src/core/render): what chats render, the pages of STEM blocks; and the guides settings show
+      case 'requestRender':
+      case 'stemPage':
+      case 'stemSvg':
+        this.render.handle(msg, (m) => v.port.post(m));
+        return;
+      case 'requestDoc':
+        v.port.post({ type: 'doc', id: msg.id, markdown: msg.id === 'stem-guide' ? this.render.guideText() : msg.id === 'egm-guide' ? egmGuide(this.egm) : null });
+        return;
+      case 'checkpoint':
+        await this.checkpoints.request(msg.reqId, msg.request, (m) => v.port.post(m));
+        return;
+      case 'memoryRequest':
+        v.port.post(
+          this.memory
+            ? await this.memory.request(msg, v.conversationId ? { id: v.conversationId, agent: v.agent } : null)
+            : { type: 'memoryResult', reqId: msg.reqId, applied: null, enabled: false, error: 'Agent memory is not available here' },
+        );
+        return;
       case 'resolveDrop': {
         const paths = msg.uris
           .map((u) => u.trim())
@@ -1335,9 +1471,7 @@ export class AppHost {
     }
     const backend = this.backendFor(this.agentOf(id));
     if (!backend) return;
-    if (action === 'delete') {
-      if (!(await this.platform.confirm('Delete this chat? This cannot be undone.'))) return;
-    }
+    // delete: the view already asked (the drawer's "Delete Conversation?" dialog), so no second VS Code dialog here
     let arg = value;
     if (action === 'rename' && !arg) {
       const current = backend.conversations().find((c) => c.id === id)?.title ?? '';
@@ -1346,6 +1480,8 @@ export class AppHost {
     }
     const res = await backend.conversationAction(id, action as 'delete' | 'fork' | 'rename' | 'archive' | 'unarchive', arg);
     if (action === 'delete') this.jarvis?.onChatDeleted(id);
+    // Agent memory: its history file goes too (memories it saved stay)
+    if (action === 'delete') this.memory?.onChatDeleted(id);
     if (action === 'delete' && v.conversationId === id) this.show(v, null, v.agent);
     if (action === 'fork' && typeof res === 'string' && res) this.show(v, res, backend.kind);
   }
@@ -1357,6 +1493,8 @@ export class AppHost {
     this.views.clear();
     this.jarvis?.dispose();
     this.plugins?.dispose();
+    this.checkpoints.dispose();
+    this.memory?.dispose();
     this.unsubs.forEach((u) => u());
     for (const b of Object.values(this.backends)) b?.dispose();
   }

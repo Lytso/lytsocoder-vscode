@@ -12,6 +12,8 @@ import { MarkdownImage, VideoLinkCard, YouTubeCard } from './Media';
 import { openSettings } from '../state/settings';
 import { CodeBlock } from './CodeBlock';
 import { InteractiveAppBlock } from './InteractiveApp';
+import { MemoryChip } from './MemoryChip';
+import { StemBlock, stemKindOf } from './Stem';
 import { ToolCallCard } from './ToolCallCard';
 import { ThinkingAccordion } from './Thinking';
 import { copyText } from '../state/store';
@@ -84,6 +86,10 @@ export function BlockView(props: {
       <Match when={b().t === 'hr'}>
         <div class="md-hr" />
       </Match>
+      <Match when={b().t === 'code' && !as('code').open && stemKindOf(as('code').lang)}>
+        {/* ```smiles / functionplot / jsxgraph / matter / tikz (Settings → STEM & diagrams), once the closing ``` arrived */}
+        <StemBlock kind={stemKindOf(as('code').lang)!} code={as('code').code.trim()} />
+      </Match>
       <Match when={b().t === 'code'}>
         <CodeBlock code={as('code').code} lang={as('code').lang} complete={!as('code').open || !props.streaming} />
       </Match>
@@ -117,6 +123,9 @@ export function BlockView(props: {
         <Show when={!props.streaming} fallback={<CodeBlock code={as('mermaid').code} lang="mermaid" complete={false} />}>
           <MermaidBlock code={as('mermaid').code} />
         </Show>
+      </Match>
+      <Match when={b().t === 'memory'}>
+        <MemoryChip body={as('memory').body} complete={as('memory').complete} />
       </Match>
       <Match when={b().t === 'ui'}>
         {/* a streaming app is shown as code until it is complete (a half page would run half its script) */}

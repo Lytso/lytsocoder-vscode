@@ -18,6 +18,8 @@ interface UserTurn {
   rawText: string;
   attachments: ChatAttachment[];
   createdAt: number | null;
+  /** The app's id of the message when AntiGem sent it (its `client_msg:` tag): its project checkpoint key. */
+  clientMessageId?: string | null;
 }
 
 type TurnBlock =
@@ -714,6 +716,7 @@ export class TrajectoryEngine {
           attachments: turn.attachments,
           stepIndex: turn.stepIndex,
           createdAt: turn.createdAt ?? Date.now(),
+          ...(turn.clientMessageId ? { checkpointKey: turn.clientMessageId } : {}),
         };
       } else {
         msg = this.assistantMessage(turn, convId, seen);
@@ -1297,6 +1300,7 @@ export class TrajectoryEngine {
     const raw = nonBlank(input?.user_response) ?? nonBlank(input?.query) ?? (input?.items ?? []).map((i: any) => nonBlank(i.text)).filter(Boolean).join('\n');
     const shown = displayUserText(raw, `att_${stepIndex}`);
     const voice = parseVoiceTurn(raw, input?.tags ?? []);
+    const clientMessageId = ((input?.tags ?? []) as string[]).find((t) => t.startsWith(CLIENT_MSG_TAG_PREFIX))?.slice(CLIENT_MSG_TAG_PREFIX.length) || null;
     if (voice) {
       return {
         kind: 'user',
@@ -1305,6 +1309,7 @@ export class TrajectoryEngine {
         rawText: raw,
         attachments: this.userAttachments(input, stepIndex).filter((a) => !a.isAudio),
         createdAt: tsMillis(step.metadata?.created_at) || null,
+        clientMessageId,
       };
     }
     return {
@@ -1314,6 +1319,7 @@ export class TrajectoryEngine {
       rawText: raw,
       attachments: [...this.userAttachments(input, stepIndex), ...shown.cards],
       createdAt: tsMillis(step.metadata?.created_at) || null,
+      clientMessageId,
     };
   }
 

@@ -604,6 +604,10 @@ export class CodexTranscript {
           isStreaming: false,
           attachments: [...lp.images, ...cards],
           createdAt: lp.created,
+          // its project checkpoint was saved under the client id (CodexTranscript.kt)
+          checkpointKey: lp.clientId,
+          // the text as sent ("View full prompt")
+          ...(text !== lp.text.trim() ? { sentContent: lp.text } : {}),
         };
       }
       nextLocal.set(id, { key, message: msg });
@@ -677,7 +681,8 @@ export class CodexTranscript {
   private userMessage(conversationId: string, item: Item, t: Turn): ChatMessage {
     const parts = arr(item.json, 'content').map((x) => obj(x)).filter((x): x is J => x != null);
     // files sent by path are listed in the message's hidden text: shown as cards
-    const { text, cards } = displayUserText(userText(item.json) ?? '', item.id);
+    const raw = userText(item.json) ?? '';
+    const { text, cards } = displayUserText(raw, item.id);
     // images show as previews: a localImage is a file on this machine, an image a data URL
     const images: ChatAttachment[] = [];
     parts.forEach((p, i) => {
@@ -735,6 +740,10 @@ export class CodexTranscript {
       isStreaming: false,
       attachments: [...images, ...cards],
       createdAt: item.startedAt ?? t.startedAt ?? 0,
+      // its project checkpoint is bound to the turn id
+      checkpointKey: t.id,
+      // the text as sent ("View full prompt")
+      ...(text !== raw.trim() ? { sentContent: raw } : {}),
     };
   }
 

@@ -29,6 +29,9 @@ import { hasIcon } from '../ui/iconData';
 import { agentAccent, alpha, stateColor } from '../util/format';
 import { ThemesPage, themeName } from './Themes';
 import { fontScale } from '../theme';
+import { GemmyPreview, gemmyEnabled, setGemmyEnabled } from './Gemmy';
+import { renderState } from '../state/render';
+import { DOC_PAGE_PREFIX, DocPage } from './DocPage';
 
 // ------------------------------------------------------------------------------------------------ screen
 
@@ -143,6 +146,10 @@ function PageBody(props: { entry: StackEntry }) {
       <Match when={props.entry.id === LOCAL_APPEARANCE}>
         <AppearancePage />
       </Match>
+      {/* a guide the host writes in Markdown (STEM & diagrams, EGM) */}
+      <Match when={props.entry.id.startsWith(DOC_PAGE_PREFIX)}>
+        <DocPage id={props.entry.id.slice(DOC_PAGE_PREFIX.length)} />
+      </Match>
     </Switch>
   );
 }
@@ -173,7 +180,16 @@ function HostPage(props: { id: string }) {
               tint: 'var(--accent-alt)',
               title: 'Appearance',
               value: fontScale() !== 1 ? `${Math.round(fontScale() * 100)}%` : undefined,
-              onClick: () => pushPage({ id: LOCAL_APPEARANCE, title: 'Appearance', subtitle: 'Chat text size and the chat list' }),
+              onClick: () => pushPage({ id: LOCAL_APPEARANCE, title: 'Appearance', subtitle: 'Chat text size, the chat list and Gemmy' }),
+            },
+            // Settings → STEM & diagrams (host page 'stem', src/core/render), where the app puts it
+            {
+              icon: 'science',
+              tint: 'var(--accent-teal)',
+              title: 'STEM & diagrams',
+              value: renderState().installed ? 'Installed' : undefined,
+              valueColor: renderState().installed ? 'var(--success)' : null,
+              onClick: () => pushPage({ id: 'stem', title: 'STEM & diagrams', subtitle: 'Chemistry, graphs, geometry, simulations and circuits in chats' }),
             },
           ]}
         />
@@ -243,6 +259,7 @@ const PAGE_TINTS: Record<string, string> = {
   handyman: 'var(--accent-teal)',
   memory: 'var(--accent-teal)',
   history: 'var(--accent-indigo)',
+  psychology: 'var(--tertiary)',
   model: 'var(--accent-alt)',
   forum: 'var(--info)',
   chat: 'var(--info)',
@@ -280,7 +297,7 @@ const KNOWN_ICONS = new Set([
   'download', 'upload', 'edit_note', 'rule', 'policy', 'lock', 'model', 'forum', 'chat', 'cloud_sync', 'extension',
   'auto_awesome', 'code', 'smart_toy', 'cloud', 'rocket', 'language', 'public', 'notifications', 'schedule', 'layers',
   'settings', 'search', 'image', 'terminal_o', 'info_o', 'folder_o', 'build_o', 'description_o', 'edit_o', 'chat_bubble', 'lan',
-  'phone_android',
+  'phone_android', 'psychology',
 ]);
 
 const toneColor = (tone: string | null | undefined) =>
@@ -1671,7 +1688,7 @@ function FormDialog(props: {
 // ------------------------------------------------------------------------------------------------ appearance (local)
 
 
-/** Settings → Appearance: chat text scaling with presets and a live preview, and grouping chats by workspace. */
+/** Settings → Appearance: chat text scaling with presets and a live preview, grouping chats by workspace, and Gemmy. */
 function AppearancePage() {
   const presets: [number, string][] = [
     [0.85, 'Small'],
@@ -1731,6 +1748,20 @@ function AppearancePage() {
             <div class="hint">Categorize chat history in the drawer under workspace folders</div>
           </div>
           <MSwitch checked={state.ui.groupByWorkspace} onChange={(v) => setUi('groupByWorkspace', v)} label="Group Chats by Workspace" />
+        </div>
+      </div>
+      {/* Gemmy: the floating cartoon buddy (on by default; first offered by the one-time "Meet Gemmy" dialog) */}
+      <div class="settings-card toggle-card gemmy-card" onClick={() => setGemmyEnabled(!gemmyEnabled())}>
+        <div class="toggle-row">
+          <GemmyPreview zoom={0.85} dim={!gemmyEnabled()} />
+          <div class="item-label">
+            <div class="item-title">Gemmy</div>
+            <div class="hint">
+              A floating cartoon buddy across the app: drag or fling it, tap, double-tap or long-press (or right-click) it. It
+              reacts while the agent works and rests (almost no battery) when left alone.
+            </div>
+          </div>
+          <MSwitch checked={gemmyEnabled()} onChange={setGemmyEnabled} label="Gemmy" />
         </div>
       </div>
     </div>

@@ -34,6 +34,7 @@ import type { ClaudeBackend } from './ClaudeBackend';
 import { scopedLimits } from './quota';
 import { ClaudeProviders } from './ClaudeProviders';
 import { PERMISSION_MODES, effortLabel, num, permissionModeDescription, planLabel, str } from './protocol';
+import { AgentSkillsClient, AgentSkillsPanel, setupWithAiItem } from '../skills';
 
 const AGENT = 'CLAUDE' as const;
 const SLOW = 90_000;
@@ -60,6 +61,7 @@ const PAGES: { id: string; label: string; description: string; icon: string }[] 
   { id: 'claude.permissions', label: 'Permission rules', description: 'What Claude may do without asking', icon: 'security' },
   { id: 'claude.mcp', label: 'MCP servers', description: 'Tools Claude can call', icon: 'hub' },
   { id: 'claude.plugins', label: 'Plugins', description: 'Installed plugins, catalog and marketplaces', icon: 'extension' },
+  { id: 'claude.skills', label: 'Skills', description: 'Add skills from GitHub, update or remove them', icon: 'auto_awesome' },
   { id: 'claude.memory', label: 'Memory', description: 'Instructions (CLAUDE.md) and the notes Claude saved', icon: 'description' },
 ];
 
@@ -79,6 +81,18 @@ const PLUGIN_DONE: Record<string, string> = {
   'marketplace-remove': 'Removed marketplace',
   'marketplace-update': 'Updated marketplace',
 };
+
+/** Whether marketplace `m` is the one added from `source` (owner/repo, a GitHub URL or a git URL); ClaudeSettingsScreen.kt. */
+function sameMarketSource(m: any, source: string): boolean {
+  const norm = (x: string) =>
+    x.trim().replace(/\/+$/, '').replace(/\.git$/, '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/^github\.com\//, '');
+  const src = norm(source);
+  if (!src) return false;
+  return [str(m?.repo), str(m?.url), str(m?.source)]
+    .filter(Boolean)
+    .map(norm)
+    .some((it) => it === src || it.endsWith(`/${src}`) || src.endsWith(`/${it}`));
+}
 
 const lastLine = (s: unknown) =>
   String(s ?? '')
@@ -112,8 +126,17 @@ export class ClaudeSettings implements AgentSettingsProvider {
   private pluginQuery = '';
   /** The CLI changes one shared plugin config: actions run one after another (the app's pluginMutex). */
   private pluginChain: Promise<unknown> = Promise.resolve();
+  /** Settings → Claude Code → Skills (src/core/skills, the app's AgentSkillsPanel). */
+  private skills: AgentSkillsPanel;
+  /** A repository Claude Code couldn't add as a marketplace: its "Set up with AI" button (1032111). */
+  private failedMarket: string | null = null;
 
   constructor(private b: ClaudeBackend) {
+    this.skills = new AgentSkillsPanel('CLAUDE', 'claude.skills', new AgentSkillsClient(b.bridge), {
+      changed: () => this.changed(),
+      // the "/" menu reads Claude's commands and skills again (refresh=1)
+      skillsChanged: () => void this.b.loadInfo(true),
+    });
     this.providers = new ClaudeProviders(b, () => this.changed());
     this.mcpList = new Cached(() => this.fetchMcp(), () => this.changed());
     this.pluginList = new Cached(() => this.fetchPlugins(), () => this.changed());
@@ -273,6 +296,8 @@ export class ClaudeSettings implements AgentSettingsProvider {
       await Promise.allSettled([this.loadCliJob(), status ? withTimeout(status, WAIT_MS, 'Claude Code') : null]);
       return this.cliPage();
     }
+    // the skills folder is the bridge's work: no Claude Code needed
+    if (id === 'claude.skills') return this.skills.page();
     if (!(id in TITLES)) return null;
     const why = await this.blocked();
     if (why) return unavailablePage(id, TITLES[id], AGENT, why, { page: 'claude.cli', label: 'Account & CLI', description: 'Install Claude Code, or see why it can’t be used' });
@@ -697,6 +722,7 @@ export class ClaudeSettings implements AgentSettingsProvider {
           addLabel: 'Add marketplace',
           addForm: [{ id: 'source', label: 'GitHub owner/repo, a git URL, or a URL to marketplace.json', kind: 'text', placeholder: 'owner/repo', required: true }],
         },
+        ...(this.failedMarket ? [setupWithAiItem('CLAUDE', this.failedMarket, 'Claude Code found no plugin marketplace in it')] : []),
       ]),
     );
     return { id: 'claude.plugins', title: 'Plugins', sections };
@@ -744,6 +770,20 @@ export class ClaudeSettings implements AgentSettingsProvider {
     return items;
   }
 
+  /** Adds a marketplace; when no new one shows up (or the CLI fails), the page offers "Set up with AI" for it. */
+  private async addMarketplace(source: string): Promise<string> {
+    const before = new Set(((this.plugins?.marketplaces ?? []) as any[]).map((m) => str(m.name)));
+    let added = false;
+    try {
+      const r = await this.pluginAction('marketplace-add', { source });
+      added = r === 'Already working on it' || ((this.plugins?.marketplaces ?? []) as any[]).some((m) => !before.has(str(m.name)) || sameMarketSource(m, source));
+      return r;
+    } finally {
+      this.failedMarket = added ? null : source;
+      this.changed();
+    }
+  }
+
   /** Runs one plugin action; the CLI changes one shared config, so actions run one after another (pluginMutex). */
   private pluginAction(action: string, body: Record<string, string | undefined>): Promise<string> {
     const k = body.plugin || body.name || body.source || action;
@@ -760,6 +800,8 @@ export class ClaudeSettings implements AgentSettingsProvider {
       const r = await this.b.bridgeSend('POST', `/api/claude/plugins/${action}`, body, 300_000);
       const label = k.split('@')[0];
       if (!r?.success) throw new Error(`${label}: ${lastLine(r?.error) ?? `${action} failed`}`);
+      // a plugin or marketplace changed: Claude's commands and skills (the "/" menu) are read again
+      void this.b.loadInfo(true);
       return `${PLUGIN_DONE[action] ?? 'Done:'} ${label}`;
     } finally {
       this.busy.delete(`plugin:${k}`);
@@ -1025,6 +1067,10 @@ export class ClaudeSettings implements AgentSettingsProvider {
   }
 
   async change(page: string, id: string, value: unknown, rowId?: string): Promise<void> {
+    if (page === 'claude.skills') {
+      this.skills.change(id, value);
+      return;
+    }
     switch (page) {
       case 'claude.defaults':
         if (id === 'model') return this.setKey('model', value === 'default' ? null : String(value));
@@ -1082,6 +1128,7 @@ export class ClaudeSettings implements AgentSettingsProvider {
   }
 
   async action(page: string, id: string, rowId?: string, actionId?: string, values?: Record<string, string>): Promise<string | void> {
+    if (page === 'claude.skills') return this.skills.action(id, rowId, actionId, values);
     switch (page) {
       case 'claude':
       case 'claude.cli':
@@ -1130,7 +1177,7 @@ export class ClaudeSettings implements AgentSettingsProvider {
           return this.pluginAction(actionId, { plugin: rowId, scope: actionId === 'uninstall' ? p?.scope || undefined : undefined });
         }
         if (id === 'marketplaces') {
-          if (actionId === 'add' && values?.source?.trim()) return this.pluginAction('marketplace-add', { source: values.source.trim() });
+          if (actionId === 'add' && values?.source?.trim()) return this.addMarketplace(values.source.trim());
           if (rowId && (actionId === 'marketplace-update' || actionId === 'marketplace-remove')) return this.pluginAction(actionId, { name: rowId });
         }
         return;

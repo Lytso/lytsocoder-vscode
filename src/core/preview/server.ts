@@ -22,7 +22,9 @@ type Entry =
   | { kind: 'html'; html: string; at: number }
   | { kind: 'dir'; dir: string; at: number }
   | { kind: 'file'; file: string; at: number }
-  | { kind: 'remote'; url: string; at: number };
+  | { kind: 'remote'; url: string; at: number }
+  // /d/<id>/…: a folder as it is (the STEM render bundle, src/core/render), for the pages of STEM blocks
+  | { kind: 'folder'; dir: string; at: number };
 
 const MAX_ENTRIES = 300;
 const MAX_HTML = 4 * 1024 * 1024;
@@ -182,6 +184,17 @@ export class PreviewServer {
     return this.file(source).replace(`${this.base}/f/`, `${this.base}/v/`);
   }
 
+  /** A folder's files at a fixed address ending with / (the STEM render bundle: STEM pages load the libraries from it). */
+  folder(dir: string): string {
+    const abs = path.resolve(dir);
+    for (const [id, e] of this.entries)
+      if (e.kind === 'folder' && e.dir === abs) {
+        e.at = Date.now();
+        return `${this.base}/d/${id}/`;
+      }
+    return `${this.base}/d/${this.put({ kind: 'folder', dir: abs, at: Date.now() })}/`;
+  }
+
   youtube(videoId: string, start = 0): string {
     if (!/^[A-Za-z0-9_-]{6,20}$/.test(videoId)) throw new Error('Not a YouTube video id');
     return `${this.base}/yt/${videoId}${start > 0 ? `?t=${Math.floor(start)}` : ''}`;
@@ -229,6 +242,16 @@ export class PreviewServer {
         return this.stream(req, res, file, /\.html?$/i.test(file) ? APP_CSP : null);
       }
       if (kind === 'f' && e.kind === 'file') return this.stream(req, res, e.file, null);
+      if (kind === 'd' && e.kind === 'folder') {
+        let target: string;
+        try {
+          target = path.resolve(e.dir, decodeURIComponent(parts.slice(2).join('/')));
+        } catch {
+          return this.fail(res, 400);
+        }
+        if (!target.startsWith(e.dir + path.sep)) return this.fail(res, 403);
+        return this.stream(req, res, target, null);
+      }
       if (kind === 'v' && (e.kind === 'file' || e.kind === 'remote')) {
         const src = e.kind === 'file' ? `/f/${id}/${encodeURIComponent(path.basename(e.file))}` : e.url;
         return this.send(res, 200, playerPage(src), 'text/html; charset=utf-8', req.method === 'HEAD');

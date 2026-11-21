@@ -208,6 +208,11 @@ export interface JarvisHooks {
    * chat ([markJarvis]: a new chat the view opened with "New Jarvis chat"), or null for any other chat.
    */
   wrapSend(conversationId: string, agent: AgentKind, text: string, isNew: boolean, markJarvis: boolean): string | null;
+  /**
+   * Whether a message the user sends to this chat goes to Jarvis (wrapSend would wrap it): slash commands that work
+   * differently for Jarvis (EGM) ask before expanding (JarvisController.isJarvisTarget).
+   */
+  isJarvisTarget(conversationId: string, isNew: boolean, markJarvis: boolean): boolean;
   /** Adds the parsed news (`jarvisEvents`) to the labelled messages Jarvis sent. */
   decorateMessages(conversationId: string, messages: ChatMessage[]): ChatMessage[];
   /** Adds `isJarvis` / `jarvisHidden` to the chat list. */

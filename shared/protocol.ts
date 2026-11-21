@@ -570,6 +570,88 @@ export type JarvisActionKind =
   /** Open Settings → Jarvis (or settingsPage) in this view */
   | 'openSettings';
 
+// ------------------------------------------------------------------------------------------------ STEM & diagrams
+// Settings → STEM & diagrams (src/core/render, webview/src/components/Stem.tsx): chemistry in math, and ```smiles,
+// ```functionplot, ```jsxgraph, ```matter, ```tikz blocks drawn in frames from the local preview server.
+
+/** What chats render now. */
+export interface RenderStateView {
+  /** The render bundle is downloaded. */
+  installed: boolean;
+  /** The parts that render: switched on, and downloaded when they need the bundle (chem, smiles, functionplot, jsxgraph, matter, tikz). */
+  active: string[];
+}
+
+// ------------------------------------------------------------------------------------------------ project checkpoints
+// src/core/checkpoints (the app's ProjectCheckpoints.kt) and webview/src/components/Checkpoints.tsx: the bridge saves a
+// hidden copy of the project right before each message (any agent); a message's restore point puts the files back.
+
+/** A checkpoint (CheckpointSummary). kind 'pre-restore' = the copy made right before a restore (restoring it undoes it). */
+export interface CheckpointView {
+  id: string;
+  time: number;
+  kind: string;
+  /** claude | agy | codex | opencode */
+  agent?: string | null;
+  title?: string | null;
+  midTurn?: boolean;
+  late?: boolean;
+  repos?: number;
+}
+
+/** What a restore would do (CheckpointPreview); a restore's answer also has its errors and the undo checkpoint. */
+export interface CheckpointPreviewView {
+  checkpoint: CheckpointView;
+  /** change: modified | deleted (made after the checkpoint: removed) | recreated (deleted after it: comes back) */
+  files: { path: string; change: string; added: number; removed: number; binary?: boolean }[];
+  modified: number;
+  deleted: number;
+  recreated: number;
+  warnings: { kind: string; text: string }[];
+  laterChats: { agent?: string | null; title?: string | null; time: number; turns: number }[];
+  errors?: string[];
+  undoId?: string | null;
+  /** Other chats (any agent) still running in this project. */
+  otherRunning?: number;
+}
+
+/** The ask-once question's project (CheckpointProjectState). */
+export interface CheckpointProjectView {
+  path: string;
+  isGit: boolean;
+  shouldAsk: boolean;
+}
+
+export type CheckpointRequest =
+  /** The new chat's project: should it ask "Keep checkpoints for …?" */
+  | { action: 'project'; project: string }
+  | { action: 'decide'; project: string; decision: 'on' | 'off' }
+  /** conversationId: the chat the sheet was opened from (not counted as another running chat). */
+  | { action: 'preview'; project: string; id: string; conversationId?: string | null }
+  | { action: 'restore'; project: string; id: string }
+  /** Opens the file's change in a diff editor tab (now ↔ checkpoint). */
+  | { action: 'diff'; project: string; id: string; file: string; change: string }
+  | { action: 'delete'; project: string; id: string };
+
+// ------------------------------------------------------------------------------------------------ Agent memory
+// src/core/memory (the app's AgentMemory.kt / MemorySync.kt) and webview/src/components/MemoryChip.tsx: an
+// ```antigem-memory block in a reply is drawn as a chip telling what the bridge did with it (with Undo).
+
+/** What became of one memory block (the bridge's /api/memory/applied). */
+export interface MemoryAppliedView {
+  key: string;
+  /** The bridge has seen the block (false: not synced yet). */
+  found: boolean;
+  /** saved | updated | deleted | error */
+  action?: string;
+  /** The memory file under the memory folder ("global/x.md", "projects/<dir>/x.md"). */
+  id?: string;
+  description?: string;
+  error?: string;
+  undone?: boolean;
+  at?: number;
+}
+
 export type HostToView =
   | {
       type: 'init';
@@ -615,6 +697,30 @@ export type HostToView =
   | { type: 'focusComposer' }
   /** Every note (answer to requestNotes, and again after any change — also when an agent edits them via notes_mcp). */
   | { type: 'notes'; notes: NoteView[] }
+  // ---- Skills (src/core/skills)
+  /** Settings → "Set up with AI": close the settings and open a new chat of `agent` with `text` in its message box. */
+  | { type: 'startChat'; agent: AgentKind; text: string }
+  // ---- STEM & diagrams (src/core/render) and pages the view draws from the host's Markdown
+  /** What chats render (answer to requestRender, and to every view whenever it changes). */
+  | { type: 'renderState'; state: RenderStateView }
+  /** Answer to stemPage / stemSvg: the block's page (null with an error). TikZ: the compiled picture or the TeX run. */
+  | { type: 'stemPage'; reqId: string; url: string | null; tikz?: 'svg' | 'compile' | null; error?: string | null }
+  /** Answer to requestDoc: a guide as Markdown (null = unknown id). */
+  | { type: 'doc'; id: string; markdown: string | null }
+  // ---- Project checkpoints (src/core/checkpoints)
+  /** The open chat's restore points: user message id → its checkpoint (empty while checkpoints are off). */
+  | { type: 'checkpoints'; conversationId: string; project: string | null; byMessage: Record<string, CheckpointView> }
+  /** Answer to a `checkpoint` request (error = it failed). */
+  | { type: 'checkpointReply'; reqId: string; error?: string | null; preview?: CheckpointPreviewView | null; project?: CheckpointProjectView | null }
+  /** Settings → Project checkpoints: open a checkpoint's restore sheet (files only; `deletable` = with Delete). */
+  | { type: 'checkpointOpen'; project: string; checkpoint: CheckpointView; deletable?: boolean }
+  /** Settings → Project checkpoints → a project's History: push that settings page. */
+  | { type: 'checkpointHistory'; page: string; title: string; subtitle?: string | null }
+  // ---- Agent memory (src/core/memory)
+  /** Answer to memoryRequest; `enabled` = Agent memory is on (off: the chip says it was not saved). */
+  | { type: 'memoryResult'; reqId: string; applied: MemoryAppliedView | null; enabled: boolean; error?: string | null }
+  /** Memories changed (a reply saved one, an Undo, the settings), or memory was switched on / off: chips ask again. */
+  | { type: 'memoryChanged'; enabled: boolean }
   // ---- Jarvis
   /** Jarvis state: `full` = the whole state (on init / requestJarvis); otherwise only the fields that changed. */
   | { type: 'jarvis'; state: Partial<JarvisState>; full?: boolean }
@@ -729,6 +835,27 @@ export type ViewToHost =
   | { type: 'toolAction'; conversationId: string; toolId: string; action: 'terminate' | string }
   /** Model sheet edit mode: move a model (by its group key) to another quota group (null = automatic). */
   | { type: 'setQuotaGroup'; agent: AgentKind; modelId: string; group: string | null }
+  // ---- Skills (src/core/skills)
+  /** The `/` menu opened (at most every 10 s per agent): the agent reads its commands and skills again for the folder
+   *  of the chat this view shows (answered with `commands` when they changed). */
+  | { type: 'slashMenuOpened'; agent: AgentKind }
+  // ---- STEM & diagrams (src/core/render) and pages the view draws from the host's Markdown
+  /** What chats render (answered with renderState). */
+  | { type: 'requestRender' }
+  /**
+   * The page of a STEM block (`kind` = smiles, functionplot, jsxgraph, matter or tikz; `fg` = the chat's text color):
+   * answered with stemPage. TikZ: the cached picture when there is one, else the TeX run.
+   */
+  | { type: 'stemPage'; reqId: string; kind: string; code: string; dark: boolean; fg?: string | null; full?: boolean }
+  /** A TikZ picture the TeX run finished: the host caches the SVG and answers stemPage with the picture's page. */
+  | { type: 'stemSvg'; reqId: string; kind: string; code: string; svg: string; dark: boolean; fg?: string | null }
+  /** A guide the settings show ('stem-guide', 'egm-guide'): answered with doc. */
+  | { type: 'requestDoc'; id: string }
+  // ---- Project checkpoints (src/core/checkpoints): answered with checkpointReply
+  | { type: 'checkpoint'; reqId: string; request: CheckpointRequest }
+  // ---- Agent memory (src/core/memory): answered with memoryResult
+  /** A memory chip: what became of its block (`body` = the block's text), or Undo of what it did. */
+  | { type: 'memoryRequest'; reqId: string; op: 'applied' | 'undo'; body: string }
   // ---- Jarvis
   /** Ask for the whole Jarvis state (answered with `jarvis {full: true}`; it is also sent on init). */
   | { type: 'requestJarvis' }

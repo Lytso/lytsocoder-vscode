@@ -13,6 +13,7 @@ import { themeMcp } from '../src/core/mcp/theme';
 import { setPresetEnv } from '../src/core/mcp/presets';
 import { JarvisEngine } from '../src/core/jarvis/engine';
 import { jarvisMcp } from '../src/core/jarvis/mcp';
+import { AgentMemory } from '../src/core/memory/memory';
 import { BrowserBridge } from '../src/core/browser/bridge';
 import { browserMcp } from '../src/core/browser/mcp';
 import { BrowserSettings } from '../src/core/browser/settings';
@@ -24,6 +25,7 @@ import { ClaudeBackend } from '../src/core/claude/ClaudeBackend';
 import { OpenCodeBackend } from '../src/core/opencode/OpenCodeBackend';
 import type { KeyValueStore } from '../src/core/types';
 import { PreviewServer } from '../src/core/preview/server';
+import { checkpoints } from '../src/core/checkpoints';
 
 const ROOT = path.resolve(__dirname, '..');
 const workspace = path.resolve(process.argv[2] ?? process.cwd());
@@ -62,6 +64,8 @@ const bridge = new BridgeManager({
   logFile: path.join(stateDir, 'bridge.log'),
   log,
 });
+// project checkpoints (same as the extension)
+checkpoints.attach(bridge, log);
 
 function walk(dir: string, out: string[], depth = 0) {
   if (depth > 6 || out.length > 5000) return;
@@ -174,6 +178,8 @@ mcp.register(themeMcp({ get: () => host.getUiPrefs(), set: (p) => host.patchUiPr
 const jarvis = new JarvisEngine({ host: host.jarvisApi(), store: kv, log, bridge, mcp });
 host.attachJarvis(jarvis);
 mcp.register(jarvisMcp(jarvis));
+// Agent memory: memories and chat history the bridge keeps for every agent
+host.attachMemory(new AgentMemory({ bridge, store: kv, log }));
 const plugins = setupPlugins(host, { bridge, store: kv, log, mcp, platform });
 // the AntiGem Chrome extension link (socket path: ANTIGEM_BROWSER_SOCKET, else the per-user default)
 const browserBridge = new BrowserBridge({ log });

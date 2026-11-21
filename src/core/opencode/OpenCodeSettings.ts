@@ -27,6 +27,7 @@ import {
 import type { OpenCodeCliJob, OpenCodeCredential, OpenCodeCustomModel, OpenCodeCustomProvider, OpenCodeMcpServer } from './client';
 import { DEFAULT_AGENTS, MODES, STATE_LABELS, agentDescription, arr, capitalize, errMsg, modeDescription, modeLabel, providerOf, str, type Json } from './common';
 import type { OpenCodeBackend } from './OpenCodeBackend';
+import { AgentSkillsClient, AgentSkillsPanel } from '../skills';
 import {
   Cached,
   MCP_EDIT,
@@ -99,8 +100,14 @@ export class OpenCodeSettings implements AgentSettingsProvider {
   private signIn: SignIn | null = null;
   private signInPoll: NodeJS.Timeout | null = null;
   private countsLoading = false;
+  /** Settings → OpenCode → Skills (src/core/skills, the app's AgentSkillsPanel). */
+  private skills: AgentSkillsPanel;
 
   constructor(private b: OpenCodeBackend) {
+    this.skills = new AgentSkillsPanel('OPENCODE', 'opencode.skills', new AgentSkillsClient(b.bridge), {
+      changed: () => this.changed(),
+      skillsChanged: () => this.b.refreshSlashCommands(),
+    });
     this.mcp = new Cached(
       () => this.fetchMcp(),
       () => this.changed(),
@@ -184,6 +191,7 @@ export class OpenCodeSettings implements AgentSettingsProvider {
             },
             { kind: 'page', id: 'opencode.models', label: 'Models', icon: 'view_list', description: 'Turn providers or models off in the model picker', badge: all ? `${shown}/${all}` : null },
             { kind: 'page', id: 'opencode.mcp', label: 'MCP servers', icon: 'hub', description: 'Tools OpenCode can call', badge: mcpSummary(servers) },
+            { kind: 'page', id: 'opencode.skills', label: 'Skills', icon: 'auto_awesome', description: 'Add skills from GitHub, update or remove them' },
           ],
         },
       ],
@@ -206,6 +214,8 @@ export class OpenCodeSettings implements AgentSettingsProvider {
       return this.cliPage();
     }
     if (id === 'opencode.permissions') return this.permissionsPage();
+    // the skills folder is the bridge's work: no OpenCode needed
+    if (id === 'opencode.skills') return this.skills.page();
     if (!(id in TITLES)) return null;
     const why = await this.blocked();
     if (why) return unavailablePage(id, TITLES[id], 'OPENCODE', why, { page: 'opencode.cli', label: 'OpenCode CLI', description: 'Install OpenCode, or see why it isn’t running' });
@@ -719,6 +729,10 @@ export class OpenCodeSettings implements AgentSettingsProvider {
   // ------------------------------------------------------------------ edits
 
   async change(page: string, id: string, value: unknown, rowId?: string): Promise<void> {
+    if (page === 'opencode.skills') {
+      this.skills.change(id, value);
+      return;
+    }
     if (page === 'opencode.mcp' && id === MCP_LIST && rowId) {
       await this.setMcpEnabled(rowId, value === true);
       return;
@@ -796,6 +810,7 @@ export class OpenCodeSettings implements AgentSettingsProvider {
     }
     if (page === 'opencode.providers') return this.providerAction(id, rowId, actionId, values);
     if (page === 'opencode.mcp') return this.mcpAction(id, rowId, actionId, values);
+    if (page === 'opencode.skills') return this.skills.action(id, rowId, actionId, values);
   }
 
   private async restart(): Promise<string> {

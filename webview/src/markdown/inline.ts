@@ -1,6 +1,7 @@
 // Port of the app's inline markdown (MarkdownContent.kt: INLINE_MARKDOWN_PATTERN + buildRichAnnotatedString) to
 // escaped HTML. Links carry data-* attributes; one delegated click handler (App.tsx) opens them.
 import { mathReady, renderTex } from './math';
+import { chemReady, isChem } from '../state/render';
 import { themeMode } from '../theme';
 
 const PATTERN = new RegExp(
@@ -246,7 +247,7 @@ export function inlineHtml(text: string): string {
   if (!/[*_`[<$\\~]|:\/\//.test(text)) return esc(text);
   // text with math depends on KaTeX being loaded and on the theme (formula colors): part of the cache key, and read
   // here so the calling view re-renders when either changes
-  const key = text.includes('$') || text.includes('\\(') ? `${mathReady() ? 1 : 0}${themeMode()}\u0000${text}` : text;
+  const key = text.includes('$') || text.includes('\\(') ? `${mathReady() ? 1 : 0}${isChem(text) && chemReady() ? 'c' : ''}${themeMode()}\u0000${text}` : text;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   const html = render(text, 0);

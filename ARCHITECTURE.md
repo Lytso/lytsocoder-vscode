@@ -123,6 +123,14 @@ they port.
   `antigravity.google`, `claude.ai`, OpenAI's Codex releases, `opencode.ai`.
 - **Model lists of custom Claude providers** (e.g. DeepSeek, Moonshot, Z.ai, OpenRouter), only for providers the user
   configures.
+- **Agent skills from GitHub** (*Skills* page of each agent, *Install a plugin from GitHub* for agy): the bridge
+  downloads the repository the user typed from `api.github.com` / `raw.githubusercontent.com` (or
+  `github.com/<owner>/<repo>/archive/<ref>.zip` as one archive), only when the user presses *Find skills*, *Add*, *Update* or *Install*.
+- **STEM & diagrams bundle**, only when the user presses *Download* on that page: `github.com/Santoshkurmi/antigem/releases/download/render-v1/antigem-render-bundle-v1.zip`
+  (redirects to GitHub's release-asset host). Its size and SHA-256 are pinned; anything else is refused.
+- **EGM** (*Agents → EGM*), on *Install*, *Update*, *Check for update* and when that page opens (at most every
+  5 minutes): `api.github.com/repos/google/elephant-goldfish-model/releases/latest` (or `…/commits/main`), the release's
+  `SHA256SUMS` and ZIP (or `codeload.github.com/…/zip/<commit>`).
 - **Images in chat messages:** the webview CSP allows `img-src https:` so images in replies can render.
 
 The agent CLIs make their own connections to their providers. AntiGem does not proxy, inspect or log that traffic.
@@ -203,6 +211,12 @@ settings.
 | `~/.gemini/<antigravity-ide \| antigravity \| antigravity-cli>/` | Antigravity history, written by the agy hub | While agy runs |
 | `~/.claude/projects/…` (read) | Claude Code transcripts, read to show chat history and subagents | Opening chats |
 | Agent configuration (agy `mcp_config.json`, Claude `settings.json` / MCP config, Codex `config.toml`, OpenCode config) | Changed through each agent's own API or CLI | Only when the user changes that agent's settings in AntiGem |
+| `~/.antigem_bridge/checkpoints/` | Project checkpoints: a hidden git repository per project (the project's own `.git` is only read) | Before each message, only for projects with checkpoints on (off by default); restore / delete on request |
+| `~/.antigem/memory/` (+ `~/.antigem_bridge/memory/state.json`) | Agent memories and cleaned copies of past chats, read by the agents | Only with *Agent memory* on (off by default): after each turn; delete / clear on request |
+| `~/.antigem/render/render-v1/` (+ `GUIDE.md`), `~/.antigem/render/cache/tikz/` | STEM & diagrams bundle, the guide agents read, compiled TikZ pictures | Download / remove on the STEM page; a TikZ block draws |
+| `~/.antigem/egm/`, `~/.antigem/egm-antigem/`, `~/.antigem/egm-download/` (temporary) | EGM and the rule files AntiGem writes for it | EGM install / update / settings |
+| `~/.claude/skills/`, `~/.codex/skills/`, `~/.gemini/…/skills/`, OpenCode's skills folder (+ `.antigem-source.json` per skill) | Skills added from GitHub (written by the bridge) | Only on *Add* / *Update* / *Remove* on a Skills page |
+| `~/.gemini/jetski-standalone-oauth-token`, `~/.gemini/antigem-accounts/` (Linux) | agy's login and saved copies of other accounts (written by the bridge; tokens never reach the extension) | Only on *Save*, *Switch*, *Add account*, *Delete saved copy* |
 | VS Code global state | Extension preferences (enabled agents, theme, Jarvis state, MCP device id…) | Normal use |
 
 ## 8. Third-party code

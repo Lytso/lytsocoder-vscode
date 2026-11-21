@@ -21,11 +21,13 @@ import (
 
 	// DNS for Android (no /etc/resolv.conf there); a package so `go build main.go` includes it too
 	_ "gemini-server/pkg/androiddns"
+	"gemini-server/pkg/checkpoint"
 	"gemini-server/pkg/claude"
 	"gemini-server/pkg/codex"
 	"gemini-server/pkg/config"
 	"gemini-server/pkg/handlers"
 	"gemini-server/pkg/hub"
+	"gemini-server/pkg/memory"
 	"gemini-server/pkg/nativehost"
 	"gemini-server/pkg/opencode"
 	"gemini-server/pkg/plugins"
@@ -402,7 +404,24 @@ func main() {
 	}
 
 	// Custom AntiGem plugins on disk: list, install (ZIP or GitHub repository), update, remove, export
-	mux.Handle("/api/custom-plugins/", plugins.NewManager(cfg.HomeDir))
+	// Project checkpoints: a hidden copy of the project before each chat message (any agent), restore with preview
+	mux.Handle("/api/checkpoints/", checkpoint.NewManager(cfg.HomeDir))
+
+	// Agent memory: memory files and chat history the agents read (~/.antigem/memory), shared by every agent
+	mux.Handle("/api/memory/", memory.NewManager(cfg.HomeDir))
+
+	pluginMgr := plugins.NewManager(cfg.HomeDir)
+	mux.Handle("/api/custom-plugins/", pluginMgr)
+
+	// Each agent's own skills folder (add from GitHub, update, remove) and Antigravity plugins from GitHub
+	mux.Handle("/api/agent-skills/", plugins.NewAgentSkills(pluginMgr, cfg.HomeDir, func() string {
+		if hubMgr != nil {
+			if p := hubMgr.GetAgyBin(); p != "" {
+				return p
+			}
+		}
+		return hub.InstallerAgyPath()
+	}))
 
 	// REST Endpoints
 	mux.HandleFunc("/api/health", h.HealthHandler)
@@ -416,6 +435,8 @@ func main() {
 	mux.HandleFunc("/api/agy/cli/install", h.AgyCliInstallHandler)
 	mux.HandleFunc("/api/agy/cli/update", h.AgyCliUpdateHandler)
 	mux.HandleFunc("/api/agy/hub/diag", h.AgyHubDiagHandler)
+	mux.HandleFunc("/api/agy/accounts", h.AgyAccountsHandler)
+	mux.HandleFunc("/api/agy/accounts/", h.AgyAccountsHandler)
 	mux.HandleFunc("/api/models", h.ModelsHandler)
 	mux.HandleFunc("/api/models/refresh", h.ModelsHandler)
 	mux.HandleFunc("/api/quotas", h.QuotasHandler)
@@ -705,6 +726,10 @@ func main() {
 	hubMgr.OnLoginURL = h.HandleLoginURL
 	hubMgr.OnStatusChange = func(status string, csrfToken string, errorMsg string, logs []string) {
 		wsHub.BroadcastHubStatus(status, hubPort, csrfToken, errorMsg, logs)
+		// agy runs, so it is installed: watch its login for account changes (no-op when already watching)
+		if status == hub.HubStatusOnline {
+			h.EnsureAgyAccountWatcher()
+		}
 	}
 	if !skipHub {
 		hubMgr.StartContinuousMonitor()
@@ -720,6 +745,7 @@ func main() {
 	fmt.Println("\n🛑 Shutting down antiGem server gracefully...")
 
 	// 1. Close all active WebSocket client connections immediately
+	h.StopAgyAccountWatcher()
 	wsHub.Close()
 
 	// 2. Stop Claude Code sessions, then the AGY Hub process group and continuous background monitor

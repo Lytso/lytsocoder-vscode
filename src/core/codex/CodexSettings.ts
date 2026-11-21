@@ -27,6 +27,8 @@ import {
   type McpState,
 } from '../agy/settingsKit';
 import type { CodexBackend } from './CodexBackend';
+import { AgentSkillsClient, AgentSkillsPanel } from '../skills';
+import { CodexPlugins } from './CodexPlugins';
 import { MODES, STATE_LABEL, arr, capitalize, effortDescription, effortLabel, modeDescription, modeLabel, quotaWindows, str, type J } from './util';
 
 type McpRow = Awaited<ReturnType<CodexBackend['mcpList']>>[number];
@@ -45,8 +47,17 @@ export class CodexSettings implements AgentSettingsProvider {
   private mcpCount: number | null = null;
   private mcpCounting = false;
   private busy = new Map<string, string>();
+  /** Settings → Codex → Skills (src/core/skills, the app's AgentSkillsPanel). */
+  private skills: AgentSkillsPanel;
+  /** Settings → Codex → Plugins (CodexPlugins.ts, the app's CodexPluginsPage). */
+  private plugins: CodexPlugins;
 
   constructor(private b: CodexBackend) {
+    this.plugins = new CodexPlugins(b, () => this.blocked(), () => this.changed());
+    this.skills = new AgentSkillsPanel('CODEX', 'codex.skills', new AgentSkillsClient(b.bridge), {
+      changed: () => this.changed(),
+      skillsChanged: () => void this.b.refreshSkills(true),
+    });
     this.mcp = new Cached(
       () => this.b.mcpList(),
       () => this.changed(),
@@ -109,6 +120,9 @@ export class CodexSettings implements AgentSettingsProvider {
             description: 'Tools Codex can call (Codex’s own config)',
             badge: servers ? mcpSummary(servers) : this.mcpCount ? `${this.mcpCount} servers` : null,
           },
+          // the app's CodexSettingsGroup: Plugins and Skills after MCP servers
+          { kind: 'page', id: 'codex.plugins', label: 'Plugins', icon: 'extension', description: 'Install plugins from Codex’ catalog or any GitHub marketplace' },
+          { kind: 'page', id: 'codex.skills', label: 'Skills', icon: 'auto_awesome', description: 'Add skills from GitHub, update or remove them' },
         ],
       },
     ];
@@ -127,6 +141,7 @@ export class CodexSettings implements AgentSettingsProvider {
   }
 
   async page(id: string): Promise<SettingsPage | null> {
+    if (CodexPlugins.owns(id)) return this.plugins.page(id);
     switch (id) {
       case 'codex':
         return this.mainPage();
@@ -137,6 +152,9 @@ export class CodexSettings implements AgentSettingsProvider {
       case 'codex.permissions':
         // local choices: no Codex needed
         return this.permissionsPage();
+      case 'codex.skills':
+        // the skills folder is the bridge's work: no Codex needed
+        return this.skills.page();
       case 'codex.mcp': {
         const why = await this.blocked();
         if (why) return unavailablePage(id, 'MCP servers', 'CODEX', why, { page: 'codex.cli', label: 'Account & CLI', description: 'Install Codex, or see why it can’t be used' });
@@ -441,6 +459,14 @@ export class CodexSettings implements AgentSettingsProvider {
       await this.mcpChange(rowId, on ? 'Turning on…' : 'Turning off…', () => this.b.setMcpEnabled(rowId, on));
       return;
     }
+    if (page === 'codex.skills') {
+      this.skills.change(id, value);
+      return;
+    }
+    if (CodexPlugins.owns(page)) {
+      this.plugins.change(page, id, value);
+      return;
+    }
     if (page !== 'codex.permissions') return;
     if (id === 'mode') this.b.setPermissionMode(String(value));
     else if (id === 'effort') this.b.setDefaultEffort(String(value));
@@ -486,6 +512,8 @@ export class CodexSettings implements AgentSettingsProvider {
       }
       return;
     }
+    if (page === 'codex.skills') return this.skills.action(id, rowId, actionId, values);
+    if (CodexPlugins.owns(page)) return this.plugins.action(page, id, rowId, actionId, values);
     if (page === 'codex.mcp') {
       if (id === MCP_REFRESH_ALL || (id === MCP_LIST && actionId === MCP_RECONNECT)) {
         await b.reloadMcp();

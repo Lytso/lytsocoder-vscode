@@ -15,6 +15,8 @@ import { attachedFilesBlock, cleanTitle, collapseExpansions } from '../text';
 import { baseName, pathToUri, uriToPath } from '../paths';
 import { agySlashCommands, applyQuota, modelKey, parseQuotaSummary, type QuotaGroup } from './quota';
 import { AgySettings } from './AgySettings';
+import { AgyAccounts } from './accounts';
+import { checkpoints } from '../checkpoints/client';
 
 const EMIT_INTERVAL_MS = 33;
 const DEFAULT_PROJECT_ID = 'default-cli-project';
@@ -575,6 +577,8 @@ function approvalView(t: ToolCall, step: any): ApprovalView {
 export class AgyBackend implements AgentBackend {
   readonly kind = 'AGY' as const;
   readonly settings: AgySettings;
+  /** Saved Antigravity logins and switching between them (Settings → Antigravity → Account & CLI). */
+  readonly accounts: AgyAccounts;
   readonly media: HubMedia;
   private convs = new Map<string, Conversation>();
   private sessions = new Map<string, AgySession>();
@@ -608,12 +612,13 @@ export class AgyBackend implements AgentBackend {
   private textIndex = new Map<string, string>();
 
   constructor(
-    private bridge: BridgeManager,
+    readonly bridge: BridgeManager,
     readonly store: KeyValueStore,
     readonly log: Logger,
     private opts: { openUrl: (url: string) => void; openFile?: (path: string) => void } = { openUrl: () => undefined },
   ) {
     this.settings = new AgySettings(this);
+    this.accounts = new AgyAccounts(bridge, { changed: () => this.notifySettings(), accountChanged: () => void this.accountChanged(), log });
     this.media = new HubMedia(this);
     this.client = new GrpcClient({ baseUrl: bridge.hubUrl, headers: (): Record<string, string> => (this.csrf ? { 'x-codeium-csrf-token': this.csrf } : {}) });
     this.rpc = new HubRpc(this.client);
@@ -875,6 +880,35 @@ export class AgyBackend implements AgentBackend {
     return this.bridge.opts.workspaceDir ? toFileUri(this.bridge.opts.workspaceDir) : null;
   }
 
+  private accountCheck: Promise<void> = Promise.resolve();
+
+  /**
+   * The agy login was swapped (switched in Settings, the Agy Accounts mini app or a terminal): agy already uses the new
+   * login, so ask it now; limits and models belong to the new account (AgyChatBackend.checkAgyAuthStatus with
+   * accountChanged). One check at a time, so a second one sees the new account and says nothing again.
+   */
+  accountChanged(announce = true): Promise<void> {
+    this.accountCheck = this.accountCheck.then(async () => {
+      try {
+        const before = this.settings.signedIn() ? this.settings.accountLabel() : null;
+        await this.settings.refreshAuth();
+        const now = this.settings.signedIn() ? this.settings.accountLabel() : null;
+        if (announce && now && now.toLowerCase() !== before?.toLowerCase()) this.notify('info', `Antigravity now uses ${now}`);
+        this.afterSignIn();
+        await this.accounts.refresh();
+        await this.settings.followAccount();
+      } catch (e) {
+        this.log(`[agy] account change: ${errText(e)}`);
+      }
+    });
+    return this.accountCheck;
+  }
+
+  /** A reply of any Antigravity chat is running (switching the account now may stop it). */
+  replyRunning(): boolean {
+    return [...this.convs.values()].some((c) => c.isRunning) || [...this.sessions.values()].some((s) => s.busy().running);
+  }
+
   private onHubOnline() {
     if (!this.countdownTimer) {
       // the reset countdowns ("2h 4m") tick down
@@ -884,6 +918,8 @@ export class AgyBackend implements AgentBackend {
     }
     // the hub (re)started: the agy it runs may be a new one (installed, updated)
     void this.settings.refreshCli();
+    // the bridge's account watcher runs now: follow its "account changed" news
+    this.accounts.listen();
     this.reconnectAll();
   }
 
@@ -1107,6 +1143,16 @@ export class AgyBackend implements AgentBackend {
 
   commands(): SlashCommandView[] {
     return this.slash;
+  }
+
+  /** Opening the "/" menu asks the hub for its skills again (the app's SlashCommandsCache.refresh). */
+  slashFolder(_folder: string | null, opened: boolean) {
+    if (opened && this.hubState === 'online') this.refreshCommands();
+  }
+
+  /** Skills or plugins changed (Settings → Antigravity → Skills from GitHub): the "/" list is read again. */
+  refreshCommands() {
+    void this.loadCommands();
   }
 
   private async loadCommands() {
@@ -1359,6 +1405,9 @@ export class AgyBackend implements AgentBackend {
       await this.ensureOnHub(s, modelId, workspaceUri);
       stage = 'send';
       s.ensureStream();
+      // project checkpoint (ProjectCheckpoints.kt, when on): the files right before Antigravity gets the message (not a
+      // cloud chat's: its files are not here); a queued one never holds anything up
+      if (conv?.cloudProjectId == null) await checkpoints.beforeSend({ agent: 'AGY', chatId: req.conversationId, workspaceUri, key: clientMessageId, title: req.text, midTurn: queued });
       const sendReq = this.userMessageRequest(req.conversationId, text, media, modelId, queued ? 'MESSAGE_DELIVERY_STRATEGY_WHEN_IDLE' : 'MESSAGE_DELIVERY_STRATEGY_NEXT_INVOCATION', clientMessageId);
       try {
         await this.call('SendUserCascadeMessage', sendReq);
@@ -1840,6 +1889,7 @@ export class AgyBackend implements AgentBackend {
   dispose() {
     this.disposed = true;
     this.settings.dispose();
+    this.accounts.dispose();
     if (this.pollTimer) clearTimeout(this.pollTimer);
     if (this.countdownTimer) clearInterval(this.countdownTimer);
     if (this.quotaAfterRunTimer) clearTimeout(this.quotaAfterRunTimer);

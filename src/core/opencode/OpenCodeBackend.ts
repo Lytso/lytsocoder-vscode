@@ -44,6 +44,7 @@ import {
 } from './common';
 import { MAX_RETRIES, OpenCodeTranscript, formToolId, permissionOf, questionnaireOf, safeId, type Permission } from './OpenCodeTranscript';
 import { OpenCodeSettings } from './OpenCodeSettings';
+import { checkpoints } from '../checkpoints/client';
 
 const EMIT_INTERVAL_MS = 33;
 /** Silence while waiting for the model before the notice shows, and before the turn is stopped. */
@@ -293,7 +294,7 @@ export class OpenCodeBackend implements AgentBackend {
   private lastEventsError: string | null = null;
 
   constructor(
-    private bridge: BridgeManager,
+    readonly bridge: BridgeManager,
     readonly store: KeyValueStore,
     readonly log: Logger,
     private opts: { openUrl: (url: string) => void } = { openUrl: () => undefined },
@@ -473,6 +474,7 @@ export class OpenCodeBackend implements AgentBackend {
     if (s === 'ready' && !wasReady && this.started) {
       void this.loadModels();
       void this.loadAgents();
+      this.refreshSlashCommands();
     }
   }
 
@@ -638,8 +640,70 @@ export class OpenCodeBackend implements AgentBackend {
     });
   }
 
+  // ------------------------------------------------------------------ "/" menu: OpenCode's commands and skills
+
+  /** OpenCode's commands (/init, /review…) and skills for the "/" menu, of the open chat's folder. */
+  private slash: SlashCommandView[] = [];
+  private commandNames = new Set<string>();
+  private skillIds = new Set<string>();
+  /** The folder the "/" list is read for (null: OpenCode's own). */
+  private slashDir: string | null = null;
+  private slashRead = false;
+  private slashSeq = 0;
+
   commands(): SlashCommandView[] {
-    return [];
+    return this.slash;
+  }
+
+  /** The "/" menu follows the open chat's project; opening it reads the list again (skills added meanwhile). */
+  slashFolder(folder: string | null, opened: boolean) {
+    if (!opened && this.slashRead && folder === this.slashDir) return;
+    this.slashDir = folder;
+    this.refreshSlashCommands();
+  }
+
+  /** Reads the commands and skills again (a burst of skill.updated / command.updated events makes one read). */
+  refreshSlashCommands() {
+    this.debounce('slash', 300, () => void this.loadSlashCommands());
+  }
+
+  /** OpenCode builds its skill list a few seconds after it starts, so an empty answer is asked again. */
+  private async loadSlashCommands() {
+    if (this.ocState !== 'ready') return;
+    const seq = ++this.slashSeq;
+    const q = this.slashDir ? `?directory=${encodeURIComponent(this.slashDir)}` : '';
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const [c, k] = await Promise.all([this.client.get(`/command${q}`).catch(() => null), this.client.get(`/skill${q}`).catch(() => null)]);
+      if (seq !== this.slashSeq || this.disposed) return;
+      const skills = arr(k, 'data');
+      if (!skills.length && attempt < 3) {
+        await new Promise((r) => setTimeout(r, 3_000));
+        if (seq !== this.slashSeq || this.disposed) return;
+        continue;
+      }
+      // both reads failed: keep what is shown
+      if (c == null && k == null) return;
+      const cmds: SlashCommandView[] = [];
+      for (const x of arr(c, 'data')) {
+        const n = str(x, 'name');
+        if (n) cmds.push({ command: `/${n}`, description: str(x, 'description') || null, kind: 'command' });
+      }
+      const names = new Set(cmds.map((x) => x.command.slice(1)));
+      const sk: SlashCommandView[] = [];
+      for (const x of skills) {
+        const id = str(x, 'id');
+        if (!id || names.has(id)) continue;
+        const first = (str(x, 'description') ?? '').split('\n').find((l) => l.trim())?.trim() ?? '';
+        sk.push({ command: `/${id}`, description: first || null, kind: 'skill', argumentHint: 'what to do' });
+      }
+      sk.sort((a, b) => a.command.toLowerCase().localeCompare(b.command.toLowerCase()));
+      this.commandNames = names;
+      this.skillIds = new Set(sk.map((x) => x.command.slice(1)));
+      this.slash = [...cmds, ...sk];
+      this.slashRead = true;
+      this.changed('commands');
+      return;
+    }
   }
 
   // ------------------------------------------------------------------ controls (agent, approvals)
@@ -977,7 +1041,16 @@ export class OpenCodeBackend implements AgentBackend {
       this.toast(`OpenCode is not available: ${STATE_LABELS[this.ocState]}. Check Settings → OpenCode.`, 'warning', s);
       return;
     }
-    const { text, files, names } = await this.buildPayload(req.text, req.attachments);
+    // "/name …" picked from the "/" menu (the app's OpenCodeChatBackend.send): one of OpenCode's commands runs through
+    // its command call (OpenCode stores the command's own prompt as the message, so the typed one is dropped); a skill
+    // is attached to the prompt
+    const typed = collapseExpansions(req.text).trim();
+    const slashName = /^\/([A-Za-z0-9_.:-]+)(\s|$)/.exec(typed)?.[1] ?? null;
+    const command = slashName && this.commandNames.has(slashName) ? slashName : null;
+    const skill = slashName && !command && this.skillIds.has(slashName) ? slashName : null;
+    const payload = await this.buildPayload(command ? typed.slice(command.length + 1).trim() : req.text, req.attachments);
+    const { files, names } = payload;
+    const text = command ? typed : payload.text;
     if (!text.trim() && !files.length) return;
     const ses = s.id;
     const onServer = this.isServerSession(ses);
@@ -1038,8 +1111,27 @@ export class OpenCodeBackend implements AgentBackend {
       this.created.add(ses);
       if (this.reverse.has(ses)) this.saveAliases();
     }
+    // project checkpoint (ProjectCheckpoints.kt, when on): the files right before OpenCode gets the message (one sent
+    // while it still replies waits in its queue: marked mid-turn, never waited for)
+    const project = workspaceUri || this.conversations().find((c) => c.id === req.conversationId)?.workspaceUri;
+    await checkpoints.beforeSend({ agent: 'OPENCODE', chatId: req.conversationId, workspaceUri: project, key: msgId, title: req.text, midTurn: wasActive });
+    if (command) {
+      try {
+        await this.client.post(`/session/${ses}/command`, { name: command, text: payload.text, ...(files.length ? { files } : {}) });
+        s.transcript.dropLocal(msgId);
+        s.emitNow();
+      } catch (e) {
+        this.fail(s, msgId, `OpenCode did not run /${command}`, e, wasActive);
+      }
+      return;
+    }
     try {
-      await this.client.post(`/session/${ses}/prompt`, { id: msgId, text: text || 'See the attached file.', ...(files.length ? { files } : {}) });
+      await this.client.post(`/session/${ses}/prompt`, {
+        id: msgId,
+        text: text || 'See the attached file.',
+        ...(files.length ? { files } : {}),
+        ...(skill ? { skills: [{ id: skill }] } : {}),
+      });
     } catch (e) {
       this.fail(s, msgId, 'OpenCode did not take the message', e, wasActive);
     }
@@ -1428,6 +1520,10 @@ export class OpenCodeBackend implements AgentBackend {
     switch (type) {
       case 'server.connected':
         return;
+      case 'skill.updated':
+      case 'command.updated':
+        this.refreshSlashCommands();
+        break;
       case 'session.created':
       case 'session.deleted':
       case 'session.forked':

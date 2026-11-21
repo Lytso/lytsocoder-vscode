@@ -176,7 +176,8 @@ export const [focusTick, setFocusTick] = createSignal(0);
 export const send = (msg: ViewToHost) => host.send(msg);
 
 function persistUi() {
-  host.setState({ ui: { groupByWorkspace: state.ui.groupByWorkspace, agentFilter: state.ui.agentFilter } });
+  // other parts keep their own keys in the view state (Gemmy's place)
+  host.setState({ ...host.getState<object>(), ui: { groupByWorkspace: state.ui.groupByWorkspace, agentFilter: state.ui.agentFilter } });
 }
 
 export function setUi<K extends keyof ViewUi>(key: K, value: ViewUi[K]) {

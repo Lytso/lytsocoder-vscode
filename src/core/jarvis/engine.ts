@@ -312,6 +312,11 @@ export class JarvisEngine implements JarvisHooks {
     return out;
   }
 
+  isJarvisTarget(conversationId: string, isNew: boolean, markJarvis: boolean): boolean {
+    if (!this.prefs.get('enabled')) return false;
+    return (markJarvis && isNew) || this.managers.isManager(conversationId) || this.prefs.isJarvisChat(conversationId);
+  }
+
   decorateMessages(conversationId: string, messages: ChatMessage[]): ChatMessage[] {
     if (!this.prefs.isJarvisChat(conversationId) && !messages.some((m) => m.role === 'USER' && m.content.startsWith(LABEL_PREFIX))) return messages;
     let changed = false;

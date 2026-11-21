@@ -120,7 +120,7 @@ export class ClaudeBackend implements AgentBackend {
   private usageSeq = 0;
 
   constructor(
-    private bridge: BridgeManager,
+    readonly bridge: BridgeManager,
     readonly store: KeyValueStore,
     readonly log: Logger,
     private opts: { openUrl: (url: string) => void; projectDir?: () => string | null } = { openUrl: () => undefined },
@@ -310,11 +310,33 @@ export class ClaudeBackend implements AgentBackend {
     return this.providers.find((p) => p.id === id);
   }
 
-  /** Models, slash commands and defaults from the CLI's `initialize` (cached by the bridge; refresh=1 asks again). */
+  /** The folder the "/" menu follows (the chat a view shows; the app's slashCwd), and the one the commands on show
+   *  were read in (undefined = none yet). */
+  private slashDir: string | null = null;
+  private infoCwd: string | null | undefined = undefined;
+  private infoSeq = 0;
+
+  /** The "/" menu follows the open chat's project: its commands and skills are read when it is another one (the
+   *  app's refreshInfoForChat; the bridge keeps each folder's answer). */
+  slashFolder(folder: string | null, _opened: boolean) {
+    this.slashDir = folder;
+    if (this.started && folder !== this.infoCwd && this.cli?.installed !== false) void this.loadInfo(false);
+  }
+
+  /**
+   * Models, slash commands and defaults from the CLI's `initialize` (cached by the bridge per folder; refresh=1 asks
+   * again). It runs in the "/" menu's folder, so that project's own skills and commands are in it.
+   */
   async loadInfo(force: boolean) {
+    const cwd = this.slashDir;
+    const seq = ++this.infoSeq;
     try {
-      const resp = await this.bridgeJson(`/api/claude/info${force ? '?refresh=1' : ''}`, {}, SLOW);
+      const q = [force ? 'refresh=1' : null, cwd ? `cwd=${encodeURIComponent(cwd)}` : null].filter(Boolean).join('&');
+      const resp = await this.bridgeJson(`/api/claude/info${q ? `?${q}` : ''}`, {}, SLOW);
+      // an older answer arriving late is dropped
+      if (seq !== this.infoSeq) return;
       if (resp?.success && resp.info) {
+        this.infoCwd = cwd;
         this.info = initializeInfo(resp.info);
         this.store.set('claude.info', resp.info);
         this.modelsError = null;

@@ -166,19 +166,8 @@ const BUILTIN_COMMANDS: [string, string][] = [
   ['ide', 'Open the code editor IDE'],
 ];
 
-/** Fallback known skills (SlashCommandsCache.DEFAULT_SKILLS). */
-const DEFAULT_SKILLS: [string, string, string | null][] = [
-  ['android-cli', 'Android CLI tools, emulator, SDK management, APK building', 'android-cli-plugin'],
-  ['chrome-extensions', 'Build and publish Chrome Extensions using Manifest V3 best practices', 'modern-web-guidance-plugin'],
-  ['modern-web-guidance', 'Search tool for modern web development best practices (HTML/CSS/JS/React/Vue)', 'modern-web-guidance-plugin'],
-  ['agy-customizations', 'Comprehensive guide for skills, rules, plugins, hooks, MCP servers', null],
-  ['antigravity-guide', 'Comprehensive guide and quick reference for Google Antigravity (AGY CLI, 2.0, IDE, SDK)', null],
-  ['generative_ui', 'Render rich interactive HTML widgets inline in chat or as artifacts', null],
-  ['migrate-workflows', 'Automatically migrate legacy workflows to modern skills', null],
-  ['permissioned-github', 'GitHub integration, PRs, issues, repository operations', null],
-];
-
-/** GetAllSkills skills + default skills + built-in commands, de-duplicated by name and sorted (as the app). */
+/** GetAllSkills skills + built-in commands, de-duplicated by name and sorted (as the app's SlashCommandsCache: only
+ *  skills the hub reports are listed, none are made up). */
 export function agySlashCommands(skillsResponse: any | null): SlashCommandView[] {
   const seen = new Set<string>();
   const items: (SlashCommandView & { name: string })[] = [];
@@ -191,11 +180,6 @@ export function agySlashCommands(skillsResponse: any | null): SlashCommandView[]
       .map((l) => l.trim())
       .find(Boolean);
     items.push({ name, command: `/${name}`, description: desc ?? null, kind: 'skill', pluginName: s.plugin_name || null });
-  }
-  for (const [name, description, pluginName] of DEFAULT_SKILLS) {
-    if (seen.has(name.toLowerCase())) continue;
-    seen.add(name.toLowerCase());
-    items.push({ name, command: `/${name}`, description, kind: 'skill', pluginName });
   }
   for (const [name, description] of BUILTIN_COMMANDS) {
     if (seen.has(name.toLowerCase())) continue;

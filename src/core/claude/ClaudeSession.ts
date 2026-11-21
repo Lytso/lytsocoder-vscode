@@ -16,6 +16,7 @@ import { ClaudeTranscript, questionnaireFrom, withKind } from './ClaudeTranscrip
 import { approvalViews } from './approvals';
 import { contextUsage, limitsOf, providerOf, rawModel, sameLimits, sessionState, str, type BridgeFrame, type ContextUsage, type SpawnConfig } from './protocol';
 import type { ClaudeBackend } from './ClaudeBackend';
+import { checkpoints } from '../checkpoints/client';
 
 const EMIT_INTERVAL_MS = 33;
 const RECONNECT_MS = 1500;
@@ -713,14 +714,21 @@ export class ClaudeSession {
     const frame = JSON.stringify({ type: 'user', uuid, session_id: '', parent_tool_use_id: null, message: { role: 'user', content: blocks } });
     const { text: shown, cards } = displayUserText(fullText, uuid);
     const display = shown || (images.length ? 'Image' : 'Attachment');
+    // project checkpoint (ProjectCheckpoints.kt, when on): the files right before Claude gets the message; frames of
+    // this chat go out in order behind it
+    const turn = { agent: 'CLAUDE' as const, chatId: this.id, workspaceUri: (this.b.conversation(this.id) ?? this.localConversation)?.workspaceUri, key: uuid, title: text };
     if (this.processLive && this.transcript.isTurnActive) {
       this.queued.set(uuid, { id: uuid, text: display, attachmentCount: atts.length, canSendNow: true, canDelete: false, isPending: false });
-      this.ensureConnected();
-      this.sendRaw(frame);
+      // sent while Claude works: marked mid-turn, its reply never waits for it
+      checkpoints.beforeTurnInBackground(turn);
+      checkpoints.sendInOrder(this.id, null, () => {
+        this.ensureConnected();
+        this.sendRaw(frame);
+      });
       this.scheduleEmit();
       return;
     }
-    this.transcript.addLocalUserMessage(uuid, display, [...images, ...cards.map(withKind)]);
+    this.transcript.addLocalUserMessage(uuid, display, [...images, ...cards.map(withKind)], fullText);
     if (!this.processLive) {
       this.awaitingProcess = true;
       if (this.startupTimer) clearTimeout(this.startupTimer);
@@ -732,8 +740,10 @@ export class ClaudeSession {
       }, STARTUP_NOTICE_DELAY_MS);
     }
     this.scheduleEmit();
-    this.ensureConnected();
-    this.sendRaw(frame);
+    checkpoints.sendInOrder(this.id, checkpoints.beforeTurn(turn), () => {
+      this.ensureConnected();
+      this.sendRaw(frame);
+    });
   }
 
   /** A prompt the extension answered itself: shown with its reply, never sent to Claude. */

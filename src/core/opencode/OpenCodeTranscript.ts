@@ -322,6 +322,11 @@ export class OpenCodeTranscript {
     if (this.messages.get(id)?.pending) this.messages.delete(id);
   }
 
+  /** Removes a prompt shown before OpenCode had it (a command: OpenCode adds its own message for it). */
+  dropLocal(id: string) {
+    if (this.messages.get(id)?.local) this.messages.delete(id);
+  }
+
   /** Applies one event of this session; returns true when something visible changed. */
   apply(type: string, d: Json): boolean {
     switch (type) {
@@ -674,6 +679,8 @@ export class OpenCodeTranscript {
             isStreaming: false,
             attachments: [...m.images, ...cards],
             createdAt: m.created,
+            // the text as sent ("View full prompt")
+            ...(text !== m.text.trim() ? { sentContent: m.text } : {}),
           };
         }));
       } else if (m.role === 'summary') {

@@ -55,6 +55,12 @@ export class HostSettings {
   /** The note `/plu:<plugin>[:<skill>]` expands to (set by the plugin feature; null = not an enabled plugin). */
   pluginGuide: ((pluginId: string, skill: string | null) => string | null) | null = null;
 
+  /** Settings → Agents → EGM (src/core/egm, set by the host): `/egm`, `/egm-lite`, `/egm-review` and what they send. */
+  egm: { slashItems(): SlashCommandView[]; expansion(token: string, args: string, jarvis: boolean): string | null } | null = null;
+
+  /** Settings → STEM & diagrams (src/core/render, set by the host): its first-message section, null = nothing to tell. */
+  renderContext: (() => string | null) | null = null;
+
   // ---------------------------------------------------------------- custom `/` commands
 
   commandsList(): CustomCommand[] {
@@ -66,19 +72,23 @@ export class HostSettings {
   }
 
   slashItems(): SlashCommandView[] {
-    return this.commandsList().map((c) => ({
+    // the EGM commands (when installed) come before the user's own, like the app's baseSlashItems
+    return [...(this.egm?.slashItems() ?? []), ...this.commandsList().map((c) => ({
       command: `/${c.name}`,
       description: c.description || null,
       argumentHint: c.expansion.includes('$ARGUMENTS') ? 'arguments' : null,
-      kind: 'custom',
-    }));
+      kind: 'custom' as const,
+    }))];
   }
 
-  /** Custom commands typed in the message become hidden expansion blocks (the chat still shows the command). */
-  expand(text: string): string {
+  /**
+   * Custom commands typed in the message become hidden expansion blocks (the chat still shows the command). [jarvis]:
+   * the message goes to a Jarvis chat (EGM's commands then tell Jarvis to run the reviewers as task chats).
+   */
+  expand(text: string, jarvis = false): string {
     const cmds = this.commandsList();
     const guide = this.pluginGuide;
-    if ((!cmds.length && !guide) || !text.includes('/')) return text;
+    if ((!cmds.length && !guide && !this.egm) || !text.includes('/')) return text;
     let out = '';
     let last = 0;
     for (const m of text.matchAll(guide ? PLU_TOKEN_RE : TOKEN_RE)) {
@@ -93,6 +103,10 @@ export class HostSettings {
         last = start + m[0].length;
         continue;
       }
+      // Settings → Agents → EGM: /egm, /egm-lite and /egm-review take the rest of the message as the task
+      const rest = text.slice(start + m[0].length).trim();
+      const egm = this.egm?.expansion(m[1], rest, jarvis);
+      if (egm != null) return out + text.slice(last, start) + block(rest ? `${m[0]} ${rest}` : m[0], egm);
       const cmd = cmds.find((c) => c.name.toLowerCase() === m[1].toLowerCase());
       if (!cmd) continue;
       out += text.slice(last, start);
@@ -155,6 +169,9 @@ export class HostSettings {
       'If you have a tool for asking the user questions with options (e.g. AskUserQuestion, question, ask_question), use it ' +
         'when a request is vague or you are unsure what the user wants and the answer fits a few choices: the chat shows it as a ' +
         'card the user clicks, which is faster than typing. Ask everything you need in one go and still allow a typed answer.',
+      '',
+      `${h} Node projects`,
+      'New projects: use pnpm (faster, less disk) unless the user says otherwise. Existing npm projects (package-lock.json) stay on npm.',
     ].join('\n');
   }
 
@@ -163,6 +180,9 @@ export class HostSettings {
     const parts: string[] = [];
     const builtIn = this.builtInFor(agent);
     if (builtIn) parts.push(builtIn);
+    // Settings → STEM & diagrams: the extra blocks this chat renders (normal chats only, not Jarvis)
+    const stem = this.renderContext?.();
+    if (stem) parts.push(stem);
     const own = this.activeEntries(agent).filter((e) => !e.everyMessage);
     if (own.length) parts.push("## The user's own instructions\n" + entriesBlock(own));
     return parts.length ? parts.join('\n\n') : null;

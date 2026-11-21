@@ -66,8 +66,7 @@ type Manager struct {
 	sessions map[string]*Session
 
 	infoMu     sync.Mutex
-	infoCache  json.RawMessage
-	infoAt     time.Time
+	infoCache  map[string]cachedValue // `initialize` by the folder it ran in (its project's skills and commands)
 	usageCache cachedValue
 
 	logins loginRegistry
@@ -406,6 +405,10 @@ func (s *Session) spawnLocked() error {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		if uploads := filepath.Join(home, ".antigem", "uploads"); os.MkdirAll(uploads, 0o700) == nil {
 			args = append(args, "--add-dir", uploads)
+		}
+		// Agent memory: memory files and past chats Claude reads when the app tells it about them
+		if mem := filepath.Join(home, ".antigem", "memory"); os.MkdirAll(mem, 0o700) == nil {
+			args = append(args, "--add-dir", mem)
 		}
 	}
 

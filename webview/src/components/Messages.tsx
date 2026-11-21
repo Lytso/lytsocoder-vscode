@@ -9,6 +9,10 @@ import { setArtifactsOpen } from './Artifacts';
 import { attKind, openAttachment, SelectionChip, useImageSrc } from './Attachments';
 import { ContextCompactedBanner, SummarizingCard } from './ContextCards';
 import { openTokenDetails } from './TokenDetails';
+import { FullPromptDialog } from './FullPrompt';
+import { EditRestoreLink, RestorePointButton, RestorePointChip } from './Checkpoints';
+import { checkpointOf } from '../state/checkpoints';
+import { stripMemoryBlocks } from '../state/memory';
 import { Collapse, Dialog, Icon, IconButton } from '../ui/primitives';
 import { compactTokens, formatDuration, shortModelName } from '../util/format';
 import { copyText, send, state } from '../state/store';
@@ -34,6 +38,8 @@ export function UserBubble(props: { msg: ChatMessage }) {
   const ranges = createMemo(() => props.msg.attachments.filter((a) => attKind(a) === 'selection'));
   const docs = createMemo(() => props.msg.attachments.filter((a) => !a.isAudio && !images().includes(a) && !ranges().includes(a)));
   const [confirmEdit, setConfirmEdit] = createSignal(false);
+  // the prompt as it was sent, hidden parts included (for debugging)
+  const [fullPrompt, setFullPrompt] = createSignal(false);
   const [restoreFiles, setRestoreFiles] = createSignal(false);
   const agent = () => state.chat.agent;
   const canRestore = () => agent() === 'CLAUDE' || agent() === 'OPENCODE';
@@ -151,6 +157,7 @@ export function UserBubble(props: { msg: ChatMessage }) {
           </div>
         </Show>
       </div>
+      <RestorePointChip msg={props.msg} />
       <Collapse when={actions()}>
         <div class="user-actions">
           <IconButton
@@ -163,6 +170,16 @@ export function UserBubble(props: { msg: ChatMessage }) {
               setActions(false);
             }}
           />
+          <IconButton
+            icon="visibility"
+            iconSize={15}
+            color="color-mix(in srgb, var(--on-surface) 50%, transparent)"
+            title="View full prompt"
+            onClick={() => {
+              setFullPrompt(true);
+              setActions(false);
+            }}
+          />
           <Show when={!props.msg.id.startsWith('local-')}>
             <IconButton
               icon="edit_o"
@@ -172,15 +189,17 @@ export function UserBubble(props: { msg: ChatMessage }) {
               onClick={() => {
                 setActions(false);
                 // with replies after it, ask first (ChatScreen's "Edit Message?")
-                if (hasLater() || canRestore()) {
+                if (hasLater() || canRestore() || checkpointOf(props.msg.id)) {
                   setRestoreFiles(false);
                   setConfirmEdit(true);
                 } else rewind(false);
               }}
             />
           </Show>
+          <RestorePointButton msg={props.msg} onClick={() => setActions(false)} />
         </div>
       </Collapse>
+      <FullPromptDialog open={fullPrompt()} msg={props.msg} onClose={() => setFullPrompt(false)} />
       <Dialog
         open={confirmEdit()}
         onClose={() => setConfirmEdit(false)}
@@ -222,6 +241,7 @@ export function UserBubble(props: { msg: ChatMessage }) {
             Also restore files {agent() === 'OPENCODE' ? 'OpenCode' : 'Claude'} changed after this message
           </button>
         </Show>
+        <EditRestoreLink msg={props.msg} onOpen={() => setConfirmEdit(false)} />
       </Dialog>
     </div>
   );
@@ -296,7 +316,7 @@ export function AssistantFooter(props: { msg: ChatMessage }) {
     <div class="assistant-footer" ref={root}>
       <Show when={props.msg.tokenUsage}>{(u) => <TokenPill usage={u()} />}</Show>
       <div class="assistant-actions">
-        <IconButton icon="copy" iconSize={15} color="color-mix(in srgb, var(--on-surface) 40%, transparent)" title="Copy message" onClick={() => copyText(props.msg.content, 'Copied response')} />
+        <IconButton icon="copy" iconSize={15} color="color-mix(in srgb, var(--on-surface) 40%, transparent)" title="Copy message" onClick={() => copyText(stripMemoryBlocks(props.msg.content), 'Copied response')} />
         <IconButton icon="select_all" iconSize={16} color="color-mix(in srgb, var(--on-surface) 40%, transparent)" title="Select text" onClick={selectAll} />
         <IconButton icon="refresh" iconSize={16} color="color-mix(in srgb, var(--on-surface) 40%, transparent)" title="Regenerate response" onClick={() => setConfirmRetry(true)} />
         <Show when={state.chat.artifacts.length > 0}>

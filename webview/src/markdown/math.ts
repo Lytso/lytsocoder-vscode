@@ -3,6 +3,7 @@
 // same fallback when a formula does not parse. KaTeX is loaded the first time a message contains math.
 import { createRoot, createSignal } from 'solid-js';
 import { themeMode } from '../theme';
+import { chemReady, isChem } from '../state/render';
 
 type Katex = typeof import('katex').default;
 let katex: Katex | null = null;
@@ -69,10 +70,14 @@ export function renderTex(latex: string, display: boolean): string | null {
   }
   const dark = themeMode() === 'dark';
   const tex = cleanLatex(latex);
+  // \ce{…} / \pu{…} (Settings → STEM & diagrams → Chemical equations): KaTeX's mhchem, one colour like the app;
+  // switched off (or mhchem still loading): the text fallback
+  const chem = isChem(tex);
+  if (chem && !chemReady()) return null;
   const key = `${display ? 'D' : 'I'}${dark ? 1 : 0}${tex}`;
   if (cache.has(key)) return cache.get(key)!;
   let html: string | null = null;
-  for (const src of [colorize(tex, dark), tex]) {
+  for (const src of chem ? [tex] : [colorize(tex, dark), tex]) {
     try {
       html = katex.renderToString(src, { displayMode: display, throwOnError: true, strict: 'ignore', output: 'html', trust: false });
       break;

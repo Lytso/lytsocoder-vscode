@@ -173,3 +173,36 @@ own and Chrome's are written).
   `fsProtected` / `fsValidName` per-OS rules, drive letters in `/api/fs/roots`.
 - Browser control on Windows (by design off today): registry keys, `.bat` host, named pipe, no chmod/getuid.
 - macOS: Chrome "Load unpacked" picker hides `~/.antigem/chrome-extension` (Cmd+Shift+.).
+
+## Phase 7 — catch up with the AntiGem app (v1.1.8 → v2.0.1)
+
+Compared app commits `36c3377..bbb2619` (branch `standalone`) with this extension (last push `9876c71`, v0.1.3).
+Bridge work goes into the fork in `bridge/` (port from `agy_ide_bridge/`).
+
+**Status 2026-11-21:** items 1–6 and 8–11 done; 7 and 12 not started (not asked for).
+- Bridge: all parts ported (checkpoint, memory, agent skills, Claude `Info(cwd)`, agy accounts + Linux watcher,
+  fs search / tree). `bin/antigem-bridge-linux-x64` rebuilt; the other platforms still need `npm run build:bridge`.
+- 11 needed nothing outside the bridge (VS Code's `findFiles` serves `@`).
+- Tested: each part against its own bridge build; every settings page builds through the dev server. Not yet seen in
+  real VS Code: the new UI (checkpoint sheet + diff tab, memory chip, full prompt, Skills pages, STEM cards, Gemmy).
+- Also fixed: deleting a chat asked twice (drawer dialog + VS Code dialog); only the drawer's dialog is left.
+
+### 7.1 Big features (bridge + UI)
+1. Project checkpoints: snapshot a project, restore later (`ef103aa`; bridge `pkg/checkpoint/`, checkpoint UI).
+2. Agent memory + chat history (`4c7e1df`; bridge `pkg/memory/`, Claude `--add-dir ~/.antigem/memory`, Memory and
+   History pages, memory chip on messages, memory sync).
+3. Skills manager for all agents, install/update/remove from GitHub (`d5fc5cf`, `1032111`; bridge
+   `pkg/plugins/agentskills.go`, Claude `Info()` per folder `?cwd=`, Codex Plugins page, OpenCode skills, shared Skills
+   panel, "Setup with AI" for repos that cannot be added directly).
+4. Multiple Antigravity accounts + switcher (`841f423`, `3b873da`; bridge `handlers/agy_accounts.go` + Linux watcher).
+5. EGM (Elephant-Goldfish) design reviews: install + manage `/egm` commands (`5aec36c`; EgmManager, page, expansion).
+
+### 7.2 Chat and rendering
+6. STEM rendering: chemistry notation, SMILES, function-plot, JSXGraph, Matter.js, TikZ/circuitikz/chemfig + the
+   render GUIDE for the model (`c5fd078`, `b12f3f8`; only KaTeX math today).
+8. "View full prompt" shows the text as sent, before hidden parts were collapsed (`sentContent`, `630dbf7`).
+9. Gemmy floating buddy with an on/off setting + intro (`6fc4fea`).
+10. Chat context text: add "Node projects → pnpm" part (`721babc`).
+
+### 7.3 Small fixes
+11. File search/tree: symlinks, cancel on client gone, `files=1`, path query with `/`, 20k node cap (`9c32a24`).

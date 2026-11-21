@@ -128,6 +128,10 @@ export interface ChatMessage {
    * "⚡ Jarvis · Build: done"). Render it as the event card (the app's JarvisEventCard), not as a user bubble.
    */
   jarvisEvents?: JarvisEventView[] | null;
+  /** A user message: the id its project checkpoint was saved under, when the agent's transcript knows it (Models.kt). */
+  checkpointKey?: string | null;
+  /** A user message whose `content` the chat shows collapsed (hidden parts removed): the text as it was sent (Models.kt). */
+  sentContent?: string | null;
 }
 
 /** Jarvis: one piece of news inside a labelled Jarvis message (the app's JarvisEvents.Parsed). */

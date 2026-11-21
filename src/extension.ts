@@ -16,6 +16,7 @@ import { themeMcp } from './core/mcp/theme';
 import { setPresetEnv } from './core/mcp/presets';
 import { JarvisEngine } from './core/jarvis/engine';
 import { jarvisMcp } from './core/jarvis/mcp';
+import { AgentMemory } from './core/memory/memory';
 import { BrowserBridge } from './core/browser/bridge';
 import { browserMcp } from './core/browser/mcp';
 import { BrowserSettings } from './core/browser/settings';
@@ -25,6 +26,8 @@ import { CodexBackend } from './core/codex/CodexBackend';
 import { ClaudeBackend } from './core/claude/ClaudeBackend';
 import { OpenCodeBackend } from './core/opencode/OpenCodeBackend';
 import { PreviewServer } from './core/preview/server';
+import { checkpoints } from './core/checkpoints';
+import { diffDocs } from './diffDocs';
 import { showSystemNote, systemNotifyUnavailable } from './systemNotify';
 import type { AgentKind, ChatAttachment } from '../shared/model';
 import type { EditorContextView, FileSuggestion, HostToView, ViewToHost } from '../shared/protocol';
@@ -195,6 +198,8 @@ export function activate(context: vscode.ExtensionContext) {
     logFile: path.join(context.globalStorageUri.fsPath, 'bridge.log'),
     log,
   });
+  // project checkpoints: every agent asks the bridge for one right before a message goes out
+  checkpoints.attach(bridge, log);
 
   /** Delivers a message to the chat the user works in (last used view; else the sidebar, opened if needed). */
   const deliver = async (msg: HostToView) => {
@@ -382,6 +387,8 @@ export function activate(context: vscode.ExtensionContext) {
       await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Active });
       void title;
     },
+    // a checkpoint's copy of a file against the file now (restore sheet)
+    openDiff: diffDocs(context),
     revealRange: (p, a, b) => {
       void vscode.window.showTextDocument(vscode.Uri.file(p), { selection: new vscode.Range(Math.max(0, a - 1), 0, Math.max(0, b - 1), Number.MAX_SAFE_INTEGER) });
     },
@@ -486,6 +493,8 @@ export function activate(context: vscode.ExtensionContext) {
   const jarvis = new JarvisEngine({ host: host.jarvisApi(), store: kv, log, bridge, mcp });
   host.attachJarvis(jarvis);
   mcp.register(jarvisMcp(jarvis));
+  // Agent memory: memories and chat history the bridge keeps for every agent (Settings → Agents → Agent memory)
+  host.attachMemory(new AgentMemory({ bridge, store: kv, log }));
   // custom AntiGem plugins: /mcp?extension=<id>, /extension_developer, settings, `/plu:` (workers run in the port owner)
   const plugins = setupPlugins(host, { bridge, store: kv, log, mcp, platform });
   // the AntiGem Chrome extension (native messaging -> per-user socket, served by the MCP port owner): /browser + Settings → Browser

@@ -28,6 +28,7 @@ import { agentNeed, notReadyText } from '../state/agentSetup';
 import { pathBaseName } from '../util/paths';
 import { quotaPillWindow } from '../theme';
 import { openAgentSettings, openSettings, setThemePanelOpen } from '../state/settings';
+import { slashMenuOpened } from '../state/skills';
 import { expandMentions, mentionLabel, mentionToken, shortenMentions, shortMentionText, splitPicked, type Mention } from '../util/mentions';
 
 export const [modelSheetOpen, setModelSheetOpen] = createSignal(false);
@@ -338,6 +339,8 @@ export function InputBar() {
     const before = text().substring(0, caret);
     const slash = /(^|\s)\/([^\s/]*)$/.exec(before);
     if (slash) {
+      // the agent reads its skills again (throttled): ones added meanwhile, the chat's project ones
+      slashMenuOpened(state.chat.agent);
       const slashIndex = before.length - slash[2].length - 1;
       const query = slash[2];
       const nothingBefore = !before.substring(0, slashIndex).trim();

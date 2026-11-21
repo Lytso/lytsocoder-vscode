@@ -28,6 +28,8 @@ import { NotesScreen, setNotesOpen } from './components/Notes';
 import { JarvisCommandStrip } from './components/JarvisCommand';
 import { JarvisOverlay } from './components/JarvisOverlay';
 import { JarvisPanel } from './components/JarvisPanel';
+import { GemmyLayer } from './components/Gemmy';
+import { CheckpointsLayer } from './components/Checkpoints';
 import { host } from './host';
 import { openSettings } from './state/settings';
 import { openConversation } from './state/store';
@@ -121,7 +123,11 @@ export function App() {
       <ImageViewerHost />
       <DropZone />
       <TerminatedDialogHost />
+      {/* project checkpoints: the restore sheet and the ask-once question */}
+      <CheckpointsLayer />
       <JarvisPanel />
+      {/* Gemmy, the floating buddy over every screen, and its one-time intro (GemmyOverlay) */}
+      <GemmyLayer />
       <Show when={firstRun()}>
         <FirstRunAgents onDone={chooseFirstAgents} />
       </Show>

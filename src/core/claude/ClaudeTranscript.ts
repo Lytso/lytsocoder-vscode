@@ -68,6 +68,8 @@ interface UserTurn extends TurnBase {
   stepIndex: number;
   /** Transcript message right before this prompt; rewinding to it drops this prompt and everything after. */
   parentUuid: string | null;
+  /** The prompt as sent, when the chat shows it collapsed ("View full prompt"). */
+  sent?: string;
 }
 
 interface SummaryTurn extends TurnBase {
@@ -278,8 +280,8 @@ export class ClaudeTranscript {
   // ------------------------------------------------------------------ local actions
 
   /** Shows the user's message immediately; the CLI's replay with the same uuid is ignored later. */
-  addLocalUserMessage(uuid: string, text: string, attachments: ChatAttachment[]) {
-    this.addUserTurn(uuid, text, attachments, Date.now(), this.lastEventUuid);
+  addLocalUserMessage(uuid: string, text: string, attachments: ChatAttachment[], sent?: string) {
+    this.addUserTurn(uuid, text, attachments, Date.now(), this.lastEventUuid, sent);
     this.beginAssistantTurn();
     this.needsLogin = false;
   }
@@ -631,7 +633,7 @@ export class ClaudeTranscript {
       this.activeTurn.isStreaming = false;
       this.touch(this.activeTurn);
     }
-    this.addUserTurn(id, displayText, attachments, createdAt, (typeof e.parentUuid === 'string' ? e.parentUuid : null) ?? this.lastEventUuid);
+    this.addUserTurn(id, displayText, attachments, createdAt, (typeof e.parentUuid === 'string' ? e.parentUuid : null) ?? this.lastEventUuid, joined);
     this.lastEventUuid = id;
     if (live) this.beginAssistantTurn();
     else this.activeTurn = null;
@@ -797,9 +799,9 @@ export class ClaudeTranscript {
     return turn;
   }
 
-  private addUserTurn(uuid: string, text: string, attachments: ChatAttachment[], createdAt: number, parentUuid: string | null) {
+  private addUserTurn(uuid: string, text: string, attachments: ChatAttachment[], createdAt: number, parentUuid: string | null, sent?: string) {
     this.seenUuids.add(uuid);
-    this.turns.push({ kind: 'user', uuid, text, attachments, createdAt, stepIndex: this.stepCounter++, parentUuid, version: 0, cached: null, cachedVersion: -1 });
+    this.turns.push({ kind: 'user', uuid, text, attachments, createdAt, stepIndex: this.stepCounter++, parentUuid, version: 0, cached: null, cachedVersion: -1, ...(sent && sent.trim() !== text.trim() ? { sent } : {}) });
   }
 
   private ensureTool(id: string, name: string, input: Record<string, any> | null, turn: AssistantTurn): ToolState {
@@ -965,6 +967,7 @@ export class ClaudeTranscript {
           attachments: turn.attachments,
           stepIndex: turn.stepIndex,
           createdAt: turn.createdAt,
+          ...(turn.sent ? { sentContent: turn.sent } : {}),
         };
       } else if (turn.kind === 'assistant') {
         msg = this.assistantMessage(turn);

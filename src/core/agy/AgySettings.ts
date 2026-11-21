@@ -10,7 +10,9 @@ import type { SettingFormField, SettingItem, SettingListRow, SettingsPage, Setti
 import type { AgentSettingsProvider } from '../types';
 import type { AgyBackend } from './AgyBackend';
 import { applyQuota } from './quota';
+import { AgyAccountNotSaved } from './accounts';
 import { uriToPath } from '../paths';
+import { AgentSkillsClient, AgentSkillsPanel, setupWithAiItem } from '../skills';
 import { decodeAs, encodeAs, lengthDelimited, patchMessage, rawFields } from './proto';
 import {
   MCP_EDIT,
@@ -123,6 +125,16 @@ const firstLine = (s?: string) =>
     .map((l) => l.trim())
     .find(Boolean) ?? null;
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "20 Nov, 17:11" (the app's formatAccountTime). */
+function accountTime(ms: number): string {
+  if (!(ms > 0)) return '—';
+  const d = new Date(ms);
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${two(d.getHours())}:${two(d.getMinutes())}`;
+}
+
 /** "1.0.9" < "1.0.10" */
 function newerVersion(a: string, b: string): boolean {
   const pa = a.split('.').map((x) => Number(x) || 0);
@@ -152,7 +164,24 @@ export class AgySettings implements AgentSettingsProvider {
   private loginPoll: NodeJS.Timeout | null = null;
   private cliPoll: NodeJS.Timeout | null = null;
 
+  /** Skills & Plugins → Add skills from GitHub (src/core/skills; the app's AgentSkillsDialog "Antigravity skills"). */
+  private githubSkills: AgentSkillsPanel;
+  private skillsClient: AgentSkillsClient;
+  /** Skills & Plugins → Install a plugin from GitHub: the last run (agy's output), the app's AgyGitHubPluginDialog. */
+  private githubPlugin: { source: string; output: string; failed: boolean } | null = null;
+
   constructor(private b: AgyBackend) {
+    this.skillsClient = new AgentSkillsClient(b.bridge);
+    this.githubSkills = new AgentSkillsPanel('AGY', 'agy.skills.github', this.skillsClient, {
+      changed: () => this.changed(),
+      // the skill joins (or leaves) the "/" menu and the Skills list
+      skillsChanged: () => {
+        this.b.refreshCommands();
+        void this.loadSkills()
+          .then(() => this.changed())
+          .catch(() => undefined);
+      },
+    });
     const saved = b.store.get<string>('agy.skillScope');
     if (saved === 'WORKSPACE' || saved === 'ALL') this.skillScope = saved;
   }
@@ -285,6 +314,8 @@ export class AgySettings implements AgentSettingsProvider {
     this.changed();
     this.b.notifyStatus();
     if (wasIn !== this.auth?.loggedIn) this.b.notifyModels();
+    // the saved accounts follow the signed-in one (switched here, the mini app, a terminal, a new sign-in)
+    void this.followAccount();
   }
 
   /** The bridge's agy check (installed, path, version, a running install / update). */
@@ -394,9 +425,15 @@ export class AgySettings implements AgentSettingsProvider {
     if (id === 'agy') return this.mainPage();
     if (id === 'agy.cli') {
       // works with the hub down too: it is where agy is installed or fixed
-      await Promise.allSettled([this.loadCli(), this.b.status().state === 'online' && !this.auth ? withTimeout(this.refreshAuth(), HUB_READ_MS, 'Antigravity') : null]);
+      await Promise.allSettled([
+        this.loadCli(),
+        this.b.status().state === 'online' && !this.auth ? withTimeout(this.refreshAuth(), HUB_READ_MS, 'Antigravity') : null,
+        withTimeout(this.b.accounts.refresh(), BRIDGE_READ_MS, 'The bridge'),
+      ]);
       return this.cliPage();
     }
+    // the skills folder is the bridge's work: no hub needed
+    if (id === 'agy.skills.github') return this.githubSkills.page('Antigravity skills');
     if (!(id in TITLES)) return null;
     // every other page reads the hub: when it is down, say so at once (with the way to fix it)
     if (!(await this.b.waitOnline(WAIT_ONLINE_MS)))
@@ -1003,6 +1040,14 @@ export class AgySettings implements AgentSettingsProvider {
           description: ws ? `Workspace: ${uriToPath(ws)}` : 'Type / in the composer to use them',
           items: [
             { kind: 'select', id: 'scope', label: 'Show', value: this.skillScope, options: SKILL_SCOPES },
+            // the app's GitHubActionRow above the Skills tab
+            {
+              kind: 'page',
+              id: 'agy.skills.github',
+              label: 'Add skills from GitHub',
+              icon: 'download',
+              description: 'Pick skills from any repository; update or remove the ones you added',
+            },
             {
               kind: 'list',
               id: 'skills',
@@ -1023,6 +1068,7 @@ export class AgySettings implements AgentSettingsProvider {
           id: 'plugins',
           title: '',
           items: [
+            ...this.githubPluginItems(),
             {
               kind: 'list',
               id: 'plugins',
@@ -1198,10 +1244,178 @@ export class AgySettings implements AgentSettingsProvider {
     const sections: SettingsSection[] = [
       { id: 'cli', title: '', agent: 'AGY', items: this.cliItems() },
       { id: 'account', title: '', agent: 'AGY', items: this.accountItems() },
+      this.accountsSection(),
     ];
     const usage = this.usageItems();
     if (usage) sections.push({ id: 'usage', title: '', agent: 'AGY', description: 'What is left of each limit, and when it resets', items: usage });
     return { id: 'agy.cli', title: 'Account & CLI', sections };
+  }
+
+  // --- Saved accounts (the app's AgyAccountsCard, ui/agents/AgyAccountsUi.kt): saved Antigravity logins and switching
+  // between them. The bridge keeps the copies and swaps agy's login file; the backend then re-checks the sign-in.
+
+  /** Add account cleared the login: Google sign-in starts once agy shows signed out. */
+  private signInWhenSignedOut = false;
+
+  /**
+   * The signed-in account changed (the app's LaunchedEffect on the sign-in state): the saved list follows it, the
+   * account that signs in after "Add account" is saved on its own, and that sign-in starts once agy shows signed out.
+   */
+  async followAccount() {
+    const acc = this.b.accounts;
+    if (this.auth?.loggedIn && acc.saveNextSignIn) {
+      acc.saveNextSignIn = false;
+      const email = this.auth.email;
+      await acc.saveCurrent().then(
+        () => this.b.notify('info', `Saved ${email || 'this account'}`),
+        (e) => this.b.log(`[agy] save account: ${this.err(e)}`),
+      );
+    } else await acc.refresh();
+    if (this.signInWhenSignedOut && this.auth && !this.auth.loggedIn && !this.signingIn) {
+      this.signInWhenSignedOut = false;
+      await this.signIn().catch((e) => this.b.notify('error', this.err(e)));
+    }
+  }
+
+  private accountsSection(): SettingsSection {
+    const acc = this.b.accounts;
+    const st = acc.state;
+    const section = (items: SettingItem[]): SettingsSection => ({ id: 'accounts', title: '', agent: 'AGY', items });
+    if (!st) {
+      if (acc.error)
+        return section([
+          { kind: 'info', id: 'agy.accounts.state', label: 'Saved accounts', value: 'Could not load', tone: 'error', description: acc.error },
+          { kind: 'button', id: 'agy.accounts.retry', label: 'Retry' },
+        ]);
+      return section([{ kind: 'info', id: 'agy.accounts.state', label: 'Saved accounts', value: 'Loading…', tone: 'muted' }]);
+    }
+    if (!st.supported)
+      return section([
+        {
+          kind: 'info',
+          id: 'agy.accounts.state',
+          label: 'Saved accounts',
+          value: 'Not available',
+          tone: 'muted',
+          description: "Agy on this computer keeps its login in the system keychain, so accounts can't be switched here.",
+        },
+      ]);
+    const busy = acc.busy;
+    const cur = st.current;
+    // signed in with a login that has no saved copy: replacing it asks to save it first or to lose it
+    const unsaved = cur.signedIn && !cur.saved;
+    const running = this.b.replyRunning();
+    const keepForm = (action: 'Switch' | 'Sign out'): SettingFormField[] | null =>
+      unsaved
+        ? [
+            {
+              id: 'current',
+              label: `${cur.email || 'This account'} isn't saved`,
+              kind: 'select',
+              value: 'save',
+              options: [
+                { value: 'save', label: `Save and ${action.toLowerCase()}`, description: 'Save it first to switch back to it later.' },
+                { value: 'force', label: `${action} without saving`, description: 'Without saving, you will have to sign in again to use it.' },
+              ],
+            },
+          ]
+        : null;
+    const rows: SettingListRow[] = [];
+    if (unsaved)
+      rows.push({
+        id: 'current',
+        title: cur.email || 'Signed-in account',
+        subtitle: 'Signed in now, not saved',
+        status: busy && busy.email == null ? busy.label : null,
+        statusTone: 'warn',
+        actions: busy ? [] : [{ id: 'save', label: 'Save' }],
+      });
+    for (const a of st.accounts) {
+      const mine = !!busy?.email && busy.email.toLowerCase() === a.email.toLowerCase();
+      rows.push({
+        id: a.email,
+        title: a.name,
+        subtitle: a.active ? 'Signed in now' : `Last used ${accountTime(a.usedAt || a.savedAt)}`,
+        status: mine ? busy!.label : a.active ? 'Active' : null,
+        statusTone: mine ? 'warn' : 'ok',
+        actions: busy
+          ? []
+          : [
+              ...(a.active
+                ? []
+                : [{ id: 'switch', label: 'Switch', form: keepForm('Switch'), confirm: running ? 'A reply is running. Switching the account now may stop it.' : null }]),
+              {
+                id: 'delete',
+                label: 'Delete saved copy',
+                danger: true,
+                confirm: `Delete the saved copy of ${a.name}? ${a.active ? 'It stays signed in; only the saved copy is deleted.' : 'To use this account again you will have to sign in again.'}`,
+              },
+            ],
+      });
+    }
+    const items: SettingItem[] = [
+      {
+        kind: 'list',
+        id: 'agy.accounts',
+        label: 'Saved accounts',
+        description: 'Keep several Google accounts and switch between them. Antigravity uses the new one right away.',
+        rows,
+        emptyText: 'No saved accounts yet.',
+      },
+    ];
+    if (acc.error) items.push({ kind: 'info', id: 'agy.accounts.error', label: 'Saved accounts', value: acc.error, tone: 'error' });
+    items.push({
+      kind: 'button',
+      id: 'agy.accounts.add',
+      label: 'Add account',
+      form: keepForm('Sign out'),
+      confirm: running ? 'A reply is running. Signing out to add an account now may stop it.' : null,
+      disabled: !!busy,
+    });
+    return section(items);
+  }
+
+  private async accountsAction(id: string, rowId?: string, actionId?: string, values?: Record<string, string>): Promise<string | void> {
+    const acc = this.b.accounts;
+    const save = values?.current === 'save';
+    const force = values?.current === 'force';
+    // the login was not saved after all (the page was older than the bridge): the page now asks
+    const notSaved = (e: unknown) =>
+      e instanceof AgyAccountNotSaved ? new Error(`${e.email || 'This account'} isn't saved: try again to save it first or go on without it.`) : e;
+    if (id === 'agy.accounts.retry') {
+      await acc.refresh();
+      if (acc.error) throw new Error(acc.error);
+      return;
+    }
+    if (id === 'agy.accounts.add') {
+      await acc.clearForNewSignIn(save, force).catch((e) => {
+        throw notSaved(e);
+      });
+      this.signInWhenSignedOut = true;
+      await this.b.accountChanged(false);
+      // agy may need a moment to see its login gone; the sign-in starts then (followAccount)
+      for (let i = 0; i < 4 && this.signInWhenSignedOut && this.auth?.loggedIn; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        await this.refreshAuth();
+      }
+      return 'Sign in with the other Google account';
+    }
+    if (id !== 'agy.accounts' || !rowId) return;
+    if (actionId === 'save') {
+      await acc.saveCurrent();
+      return `Saved ${acc.state?.current.email || 'this account'}`;
+    }
+    const a = acc.state?.accounts.find((x) => x.email.toLowerCase() === rowId.toLowerCase());
+    if (!a) throw new Error(`No saved account ${rowId}`);
+    if (actionId === 'switch') {
+      acc.saveNextSignIn = false;
+      await acc.switchTo(a.email, save, force).catch((e) => {
+        throw notSaved(e);
+      });
+      await this.b.accountChanged(false);
+      return `Switched to ${a.name}`;
+    }
+    if (actionId === 'delete') await acc.delete(a.email);
   }
 
   // ------------------------------------------------------------------ edits
@@ -1232,6 +1446,10 @@ export class AgySettings implements AgentSettingsProvider {
           return;
       }
     }
+    if (page === 'agy.skills.github') {
+      this.githubSkills.change(id, value);
+      return;
+    }
     if (page === 'agy.skills' && id === 'scope') {
       const v = String(value);
       this.skillScope = v === 'WORKSPACE' || v === 'ALL' ? v : 'GLOBAL';
@@ -1261,6 +1479,7 @@ export class AgySettings implements AgentSettingsProvider {
 
   async action(page: string, id: string, rowId?: string, actionId?: string, values?: Record<string, string>): Promise<string | void> {
     if (page === 'agy' || page === 'agy.cli') {
+      if (id.startsWith('agy.accounts')) return this.accountsAction(id, rowId, actionId, values);
       if (id === 'agy.signin') return this.signIn();
       if (id === 'agy.signin.cancel') {
         this.stopSignIn();
@@ -1387,6 +1606,8 @@ export class AgySettings implements AgentSettingsProvider {
         return `Installed and activated '${p.title || rowId}' MCP server`;
       }
     }
+    if (page === 'agy.skills.github') return this.githubSkills.action(id, rowId, actionId, values);
+    if (page === 'agy.skills' && id === 'agy.plugin.github') return this.installPluginFromGitHub((values?.source ?? '').trim());
     if (page === 'agy.skills' && rowId) {
       if (id === 'skills' && actionId === 'view') {
         const s = (this.skills ?? []).find((x) => (x.path || x.name) === rowId);
@@ -1412,6 +1633,46 @@ export class AgySettings implements AgentSettingsProvider {
         await this.afterPluginChange();
         return r.message || `Installed ${rowId}`;
       }
+    }
+  }
+
+  /** The app's GitHubActionRow above Installed Plugins + AgyGitHubPluginDialog: the button, then agy's output. */
+  private githubPluginItems(): SettingItem[] {
+    const run = this.githubPlugin;
+    const items: SettingItem[] = [
+      {
+        kind: 'button',
+        id: 'agy.plugin.github',
+        label: 'Install a plugin from GitHub',
+        description:
+          "An Antigravity or Claude Code plugin (or a Claude Code marketplace, which installs all its plugins): owner/repo or a github.com link. agy's own installer adds it, the same as `agy plugin install`.",
+        form: [{ id: 'source', label: 'GitHub repository', kind: 'text', value: run?.source ?? '', placeholder: 'owner/repo or github.com link', required: true }],
+      },
+    ];
+    if (run) {
+      items.push({ kind: 'text', id: 'agy.plugin.output', label: run.failed ? 'agy could not install it' : 'Installed', value: run.output, multiline: true, disabled: true });
+      if (run.failed) {
+        const first = run.output.split('\n').find((l) => l.trim()) ?? null;
+        items.push(setupWithAiItem('AGY', run.source, run.output.includes('could not detect plugin structure') ? 'agy found no plugin in it' : first));
+      }
+    }
+    return items;
+  }
+
+  /** Downloads the repository and runs agy's own installer (the bridge's /api/agent-skills/agy-plugin). */
+  private async installPluginFromGitHub(source: string): Promise<string> {
+    if (!source) throw new Error('Enter the repository');
+    this.githubPlugin = null;
+    this.changed();
+    try {
+      const out = await this.skillsClient.installAgyPlugin(source);
+      this.githubPlugin = { source, output: out.trim() || 'Installed.', failed: false };
+      await this.afterPluginChange();
+      return 'Plugin installed. Start a new chat to use it.';
+    } catch (e) {
+      this.githubPlugin = { source, output: this.err(e) || 'agy could not install it', failed: true };
+      this.changed();
+      throw e;
     }
   }
 

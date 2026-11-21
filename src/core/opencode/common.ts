@@ -143,6 +143,9 @@ export function rules(mode: string, agent: string): { action: string; resource: 
       rule('external_directory', 'allow', '*/.antigem/uploads/*'),
       // Windows paths use backslashes
       ...(process.platform === 'win32' ? [rule('external_directory', 'allow', '*\\.antigem\\uploads\\*')] : []),
+      // Agent memory: memory files and past chats it reads when the app tells it about them
+      rule('external_directory', 'allow', '*/.antigem/memory/*'),
+      ...(process.platform === 'win32' ? [rule('external_directory', 'allow', '*\\.antigem\\memory\\*')] : []),
     ];
   return null;
 }

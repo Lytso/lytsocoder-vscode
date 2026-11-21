@@ -35,6 +35,8 @@ export type Block =
   | { t: 'code'; lang: string; code: string; open: boolean }
   | { t: 'math'; latex: string; display: boolean }
   | { t: 'mermaid'; code: string }
+  /** An ```antigem-memory block (Agent memory): shown as a chip; `complete` once its closing fence arrived. */
+  | { t: 'memory'; body: string; complete: boolean }
   | { t: 'ui'; html: string; title: string }
   | { t: 'img'; alt: string; url: string }
   | { t: 'video'; alt: string; url: string }
@@ -456,6 +458,8 @@ function parseLines(lines: string[], from: number, tools: ToolIndex, out: Block[
       const l = lang.toLowerCase();
       if (l === 'math' || l === 'latex' || l === 'katex') push({ t: 'math', latex: cl.join('\n'), display: true }, at);
       else if (l === 'mermaid') push({ t: 'mermaid', code: cl.join('\n').trim() }, at);
+      // Agent memory: the bridge saves it, the chat shows a chip
+      else if (l.split(/\s+/)[0] === 'antigem-memory') push({ t: 'memory', body: cl.join('\n'), complete: !open }, at);
       else if (UI_LANGS.has(l)) push({ t: 'ui', html: cl.join('\n').trim(), title: 'Interactive App' }, at);
       else push({ t: 'code', lang, code: cl.join('\n'), open }, at);
       i++;

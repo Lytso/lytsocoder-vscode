@@ -51,6 +51,7 @@ import {
   type RateLimits,
 } from './util';
 import { remainingText } from '../agy/settingsKit';
+import { checkpoints } from '../checkpoints/client';
 
 const EMIT_INTERVAL_MS = 33;
 const SOURCES = ['cli', 'vscode', 'exec', 'appServer'];
@@ -327,7 +328,7 @@ export class CodexBackend implements AgentBackend {
   private titleAsked = new Set<string>();
 
   constructor(
-    private bridge: BridgeManager,
+    readonly bridge: BridgeManager,
     readonly store: KeyValueStore,
     readonly log: Logger,
     private opts: { openUrl: (url: string) => void } = { openUrl: () => undefined },
@@ -742,11 +743,30 @@ export class CodexBackend implements AgentBackend {
     return this.slash;
   }
 
-  /** Codex's skills (`skills/list`) for the "/" menu. */
-  async refreshSkills() {
-    const cwds = [...new Set([...this.uniqueSessions()].map((s) => pathOfUri(this.conversationOf(s)?.workspaceUri)).filter((x): x is string => !!x))];
+  /** The folder the "/" menu follows (the chat a view shows; the app's slashCwd), null = not told yet. */
+  private slashDir: string | null = null;
+  private skillsSeq = 0;
+
+  /** The "/" list follows the chat's project; opening the menu reads the skill folders again (the app's ChatScreen). */
+  slashFolder(folder: string | null, opened: boolean) {
+    const moved = folder !== this.slashDir;
+    this.slashDir = folder;
+    if ((moved || opened) && this.codexState === 'READY') void this.refreshSkills(opened);
+  }
+
+  /**
+   * Codex's skills (`skills/list`) for the "/" menu: the user's, the plugins' and the open chat's project ones (else
+   * every open chat's project). `force` makes Codex read the skill folders again (a skill was added, or the menu opened).
+   */
+  async refreshSkills(force = false) {
+    const cwds = this.slashDir
+      ? [this.slashDir]
+      : [...new Set([...this.uniqueSessions()].map((s) => pathOfUri(this.conversationOf(s)?.workspaceUri)).filter((x): x is string => !!x))];
+    // an older answer arriving late is dropped
+    const seq = ++this.skillsSeq;
     try {
-      const res = await this.client.rpc('skills/list', cwds.length ? { cwds } : {});
+      const res = await this.client.rpc('skills/list', { ...(cwds.length ? { cwds } : {}), ...(force ? { forceReload: true } : {}) });
+      if (seq !== this.skillsSeq) return;
       const seen = new Set<string>();
       const skills: J[] = [];
       for (const e of arr(res, 'data'))
@@ -1246,6 +1266,8 @@ export class CodexBackend implements AgentBackend {
 
     if (busy) {
       // Codex is working on this chat: the message waits in Codex's queue and runs after the current turn
+      // (its project checkpoint, when on, is marked mid-turn and never holds the reply up)
+      checkpoints.beforeTurnInBackground({ agent: 'CODEX', chatId: s.threadId!, workspaceUri: workspace, key: clientId, title: req.text });
       this.sentTo.add(s.threadId!);
       try {
         await this.client.rpc('thread/queue/add', { threadId: s.threadId, input, clientUserMessageId: clientId });
@@ -1322,8 +1344,12 @@ export class CodexBackend implements AgentBackend {
     if (modelId) params.model = modelId;
     if (effort) params.effort = effort;
     if (modelId) params.collaborationMode = { mode: s.planMode ? 'plan' : 'default', settings: { model: modelId, reasoning_effort: effort || null, developer_instructions: null } };
+    // project checkpoint (ProjectCheckpoints.kt, when on): the files right before Codex gets the message
+    const checkpoint = await checkpoints.beforeTurn({ agent: 'CODEX', chatId: tid, workspaceUri: workspace, key: clientId, title: req.text });
     try {
-      await this.client.rpc('turn/start', params);
+      const r = await this.client.rpc('turn/start', params);
+      // the chat knows the message by its turn id once Codex has it
+      if (checkpoint) void checkpoints.bind(workspace, checkpoint, r?.turn?.id);
     } catch (e) {
       this.fail(s, clientId, 'Codex did not take the message', e);
     } finally {
@@ -1986,6 +2012,10 @@ export class CodexBackend implements AgentBackend {
       case 'thread/unarchived':
       case 'thread/deleted':
         this.scheduleRefresh();
+        break;
+      case 'skills/changed':
+        // a skill folder changed (added from Settings → Skills, a plugin installed…): the "/" menu reads them again
+        void this.refreshSkills(false);
         break;
       case 'thread/name/updated': {
         const name = str(p, 'threadName');
