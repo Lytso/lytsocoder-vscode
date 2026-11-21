@@ -5,7 +5,7 @@
 //
 // Unchanged messages keep their ChatMessage object between renders (each Msg carries a revision), so the host never
 // re-sends them to the views.
-import type { ChatAttachment, ChatMessage, ChoiceOption, ChoiceQuestion, ChoiceQuestionnaire, TokenUsage, ToolCall, ToolType } from '../../../shared/model';
+import type { ChatAttachment, ChatMessage, ChoiceOption, ChoiceQuestion, ChoiceQuestionnaire, TokenUsage, ToolActionView, ToolCall, ToolType } from '../../../shared/model';
 import { displayUserText } from '../text';
 import { arr, bool, modelRef, num, obj, str, type Json } from './common';
 
@@ -27,6 +27,10 @@ class Part {
   toolAnswers: string[][] | null = null;
   /** Waiting for a permission reply (status shown as such; the request itself is in pendingPermissions). */
   awaitingPermission = false;
+  /** The shell command a running `shell` tool waits on (OpenCode's /api/shell id, from the tool's metadata). */
+  shellID: string | null = null;
+  /** Stopped from its card: its failure shows as stopped. */
+  stopped = false;
   constructor(
     readonly key: string,
     readonly kind: PartKind,
@@ -101,6 +105,8 @@ export class OpenCodeTranscript {
   readonly pendingForms = new Map<string, Form>();
   private revCounter = 0;
   private formsRev = 0;
+  /** Tool parts (by key) stopped from their card. */
+  private stoppedKeys = new Set<string>();
   private cache = new Map<string, { key: string; msg: ChatMessage }>();
 
   /** A turn is running (OpenCode's execution.started … succeeded / failed / interrupted). */
@@ -129,6 +135,7 @@ export class OpenCodeTranscript {
     this.pendingPermissions.clear();
     this.pendingForms.clear();
     this.formsRev++;
+    this.stoppedKeys.clear();
     this.cache.clear();
     this.isTurnActive = false;
     this.retryNotice = null;
@@ -163,6 +170,8 @@ export class OpenCodeTranscript {
           if (part.kind === 'TOOL' && part.toolStatus === 'RUNNING') part.toolStatus = 'TERMINATED';
         }
     }
+    // commands stopped from their card stay shown as stopped
+    if (this.stoppedKeys.size) for (const msg of this.messages.values()) for (const part of msg.parts) if (this.stoppedKeys.has(part.key)) part.stopped = true;
     this.touchAll();
   }
 
@@ -232,6 +241,7 @@ export class OpenCodeTranscript {
                 if (p.toolStatus === 'RUNNING') p.toolStatus = 'FAILED';
               }
               p.toolAnswers = answersOf(obj(state, 'metadata'));
+              p.shellID = str(obj(state, 'metadata'), 'shellID') ?? null;
               const exit = num(obj(state, 'metadata'), 'exit');
               if (exit != null) p.exitCode = Math.trunc(exit);
               p.startedAt = num(obj(co, 'time'), 'ran') ?? num(obj(co, 'time'), 'created') ?? null;
@@ -472,6 +482,9 @@ export class OpenCodeTranscript {
             const md = obj(d, 'metadata');
             const out = str(md, 'output') ?? str(md, 'stdout');
             if (out != null) part.toolOutput = out;
+            // the shell tool names its command first ({shellID}): its card can stop or background it
+            const shell = str(md, 'shellID');
+            if (shell) part.shellID = shell;
             break;
           }
           case 'session.tool.success': {
@@ -633,6 +646,42 @@ export class OpenCodeTranscript {
     for (const msg of [...this.messages.values()].reverse()) {
       const part = msg.parts.find((p) => p.key === key);
       if (part) return { msg, part };
+    }
+    return null;
+  }
+
+  /** The running shell command behind a tool card (its card id), if OpenCode named it. */
+  shellOf(toolCardId: string): string | null {
+    for (const msg of this.messages.values())
+      for (const p of msg.parts)
+        if (p.kind === 'TOOL' && safeId(p.key.replace(/^tool:/, '')) === toolCardId) return p.toolStatus === 'RUNNING' ? p.shellID : null;
+    return null;
+  }
+
+  /** A command was stopped from its card: its card says "Stopped" once OpenCode ends it (also after a reload). */
+  markStopped(toolCardId: string) {
+    for (const msg of this.messages.values())
+      for (const p of msg.parts)
+        if (p.kind === 'TOOL' && safeId(p.key.replace(/^tool:/, '')) === toolCardId) {
+          p.stopped = true;
+          this.stoppedKeys.add(p.key);
+          this.touch(msg);
+        }
+  }
+
+  /**
+   * The context window as of the last model step (as OpenCode's own footer counts it: every token of the newest reply
+   * step that has any); null before the first reply, or when the chat was compacted since.
+   */
+  contextUsage(): { tokens: number; input: number; cacheRead: number; cacheWrite: number; output: number; model: string | null } | null {
+    const all = [...this.messages.values()];
+    for (let i = all.length - 1; i >= 0; i--) {
+      const m = all[i];
+      if (m.role === 'summary') return null;
+      if (m.role !== 'assistant' || m.local) continue;
+      const output = m.outputTokens + m.reasoningTokens;
+      const tokens = m.inputTokens + m.cacheRead + m.cacheWrite + output;
+      if (tokens > 0) return { tokens, input: m.inputTokens, cacheRead: m.cacheRead, cacheWrite: m.cacheWrite, output, model: m.model };
     }
     return null;
   }
@@ -1011,8 +1060,21 @@ function answeredQuestion(p: Part): { questionnaire: ChoiceQuestionnaire; output
   return { questionnaire: { title: questions[0].description || 'OpenCode asked', questions, allowCustomNote: false }, output };
 }
 
+/**
+ * A running shell command's card buttons. OpenCode runs each command as a shell of its own (/api/shell): "Stop" ends
+ * only that command (its tool fails and OpenCode goes on with the reply); "Background" lets the running commands go on
+ * in the background (POST /session/{id}/background) and OpenCode continues, told when they finish.
+ */
+const SHELL_ACTIONS: ToolActionView[] = [
+  { id: 'stop', label: 'Stop', icon: 'stop', title: 'Stop this command (OpenCode goes on with the reply)', danger: true },
+  { id: 'background', label: 'Background', icon: 'move_down', title: 'Let the running commands go on in the background; OpenCode goes on with the reply' },
+];
+/** A command OpenCode has not named yet: only stopping the whole reply ends it (the stop button). */
+const NO_ACTIONS: ToolActionView[] = [];
+
 function toolCall(p: Part): ToolCall {
-  const status = p.awaitingPermission && p.toolStatus === 'RUNNING' ? 'PENDING_APPROVAL' : p.toolStatus;
+  const status = p.awaitingPermission && p.toolStatus === 'RUNNING' ? 'PENDING_APPROVAL' : p.stopped && p.toolStatus === 'FAILED' ? 'TERMINATED' : p.toolStatus;
+  const actions = status === 'RUNNING' && toolTypeFor(p.toolName) === 'BASH' ? (p.shellID ? SHELL_ACTIONS : NO_ACTIONS) : null;
   let output = p.toolOutput;
   if (p.toolError && !p.toolOutput.includes(p.toolError)) output += (output ? '\n' : '') + p.toolError;
   if (!output && p.toolName.toLowerCase() === 'todowrite') output = todoChecklist(p.toolInput);
@@ -1030,6 +1092,7 @@ function toolCall(p: Part): ToolCall {
     exitCode: p.exitCode,
     durationMs: p.startedAt != null && p.endedAt != null ? Math.max(0, p.endedAt - p.startedAt) : null,
     interactionType: 'opencode',
+    ...(actions ? { actions } : {}),
   };
 }
 

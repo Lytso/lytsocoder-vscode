@@ -4,7 +4,7 @@
 // output, a diff) → a pending approval → a question → a queued message → final reply with token usage.
 // URL options: ?mock&view=panel (editor tab layout) · &empty (start on a new chat) · &theme=light|dark · &fast
 import type { AgentKind, AiModel, ArtifactSnapshot, ChatAttachment, ChatMessage, Conversation, QueuedMessage, ToolCall } from '@shared/model';
-import type { AgentStatus, ApprovalView, ChatPatch, ControlChipView, HostToView, JarvisState, ModelsState, NoteView, QuestionView, SlashCommandView, ViewToHost } from '@shared/protocol';
+import type { AgentStatus, ApprovalView, ChatPatch, ChipDetailsView, ControlChipView, HostToView, JarvisState, ModelsState, NoteView, QuestionView, SlashCommandView, ViewToHost } from '@shared/protocol';
 import { createMockSettings } from './mockSettings';
 import { mockCheckpointRequest, mockRestorePoints } from './mockCheckpoints';
 
@@ -136,8 +136,9 @@ function controlsFor(agent: AgentKind, c: Ctl, started: boolean): ControlChipVie
       { id: 'thinking', label: c.thinking === 'on' ? 'Thinking' : 'No thinking', kind: 'toggle', value: c.thinking, icon: 'lightbulb', tone: c.thinking === 'on' ? 'accent' : 'muted' },
     ];
     if (started) {
-      out.push({ id: 'cache', label: 'Cache 61m', kind: 'info', value: '61', icon: 'timer', tone: 'success' });
-      out.push({ id: 'context', label: 'Context 34%', kind: 'info', value: '34', icon: 'data_usage', tone: 'success' });
+      out.push({ id: 'cache', label: 'Cache 58m', title: 'Prompt cache', kind: 'info', value: 'warm', icon: 'timer', tone: 'success' });
+      out.push({ id: 'context', label: 'Context 34%', title: 'Context window', kind: 'info', value: '34', icon: 'data_usage', tone: 'success' });
+      out.push({ id: 'limit', label: '5h 42%', title: 'Usage', kind: 'info', value: '0.42', icon: 'bolt', tone: 'success' });
     }
     return out;
   }
@@ -190,6 +191,62 @@ function controlsFor(agent: AgentKind, c: Ctl, started: boolean): ControlChipVie
     ];
   }
   return [];
+}
+
+/** Claude Code's cards for its info chips (context window, prompt cache, usage limits); null = no card (a toast). */
+function chipDetailsFor(id: string, conversationId: string | null): ChipDetailsView | null {
+  const base = { chipId: id, conversationId };
+  const at = (min: number) => new Date(Date.now() + min * MIN).toTimeString().slice(0, 5);
+  if (id === 'context')
+    return {
+      ...base,
+      title: 'Context window',
+      subtitle: 'Claude Code · Opus 5.5',
+      headline: { value: '68.0k / 200k tokens', caption: '34% used · compacts on its own near the end', tone: 'ok' },
+      breakdown: {
+        total: 200_000,
+        parts: [
+          { label: 'System prompt', value: 3_100, text: '3.1k' },
+          { label: 'System tools', value: 14_800, text: '14.8k' },
+          { label: 'MCP tools', value: 6_400, text: '6.4k' },
+          { label: 'Memory files', value: 2_200, text: '2.2k' },
+          { label: 'Custom agents', value: 900, text: '0.9k' },
+          { label: 'Messages', value: 40_600, text: '40.6k' },
+          { label: 'Free space', value: 87_000, text: '87.0k', free: true },
+          { label: 'Autocompact buffer', value: 45_000, text: '45.0k', color: 'color-mix(in srgb, var(--on-surface) 24%, transparent)' },
+        ],
+      },
+      note: 'Older turns are summarized when the window fills up.',
+      actions: [{ id: 'compact', label: 'Compact now', primary: true }],
+    };
+  if (id === 'cache')
+    return {
+      ...base,
+      title: 'Prompt cache',
+      subtitle: '1-hour cache · warm',
+      headline: { value: '58 min left', caption: 'Each reply keeps it warm', tone: 'ok' },
+      meters: [{ label: 'Time left', used: 58 / 60, text: '58 of 60 min', detail: `Expires at ${at(58)} if nothing is sent`, tone: 'ok' }],
+      rows: [
+        { label: 'Cached prompt', value: '42.0k tokens' },
+        { label: 'Written last reply', value: '3.2k tokens' },
+        { label: 'Read from the cache', value: '93%', tone: 'ok' },
+      ],
+      note: 'Cached tokens cost about a tenth of new ones.',
+    };
+  if (id === 'limit')
+    return {
+      ...base,
+      title: 'Usage limits',
+      subtitle: 'Claude Max',
+      headline: { value: '42%', caption: 'of the 5-hour limit used', tone: 'ok' },
+      meters: [
+        { label: '5-hour', used: 0.42, text: '42% used', detail: 'Resets in 2 h 14 min' },
+        { label: 'Weekly · all models', used: 0.78, text: '78% used', detail: 'Resets Thu 09:00', tone: 'warn' },
+        { label: 'Weekly · Opus', used: 0.18, text: '18% used', detail: 'Resets Thu 09:00' },
+      ],
+      note: 'Shared with Claude Code in the terminal and on claude.ai.',
+    };
+  return null;
 }
 
 function model(p: Partial<AiModel> & { id: string; displayName: string }): AiModel {
@@ -1088,7 +1145,16 @@ export function startMock(post: Post): (m: ViewToHost) => void {
         const key = m.conversationId ?? `new:${m.agent}`;
         const ctl = ctlOf(key, m.agent);
         if (m.value === 'details') {
-          post({ type: 'toast', level: 'info', message: m.id === 'cache' ? 'Prompt cache warm: about 61 min left (1-hour cache).' : 'Context: 68k of 200k tokens used (34%). Send /compact to free space.' });
+          // Claude Code answers with a card: first "loading", then the full one (other agents toast)
+          const card = m.agent === 'CLAUDE' ? chipDetailsFor(m.id, m.conversationId) : null;
+          if (card) {
+            post({ type: 'chipDetails', details: { chipId: card.chipId, conversationId: card.conversationId, title: card.title, subtitle: card.subtitle, loading: true } });
+            setTimeout(() => post({ type: 'chipDetails', details: card }), 600 * SPEED);
+          } else post({ type: 'toast', level: 'info', message: m.id === 'cache' ? 'Prompt cache warm: about 58 min left (1-hour cache).' : 'Context: 68k of 200k tokens used (34%). Send /compact to free space.' });
+          break;
+        }
+        if (m.value.startsWith('action:')) {
+          post({ type: 'toast', level: 'info', message: m.value === 'action:compact' ? 'Compacting the conversation…' : `Ran ${m.value.slice(7)}` });
           break;
         }
         if (m.value === 'run') {
@@ -1248,8 +1314,16 @@ export function startMock(post: Post): (m: ViewToHost) => void {
         for (const msg of c.messages)
           for (const t of msg.toolCalls)
             if (t.id === m.toolId && t.status === 'RUNNING') {
-              t.status = 'TERMINATED';
-              t.output += '\n^C';
+              // Claude Code: "Background" moves the command on (it keeps running), "Stop" ends it
+              if (m.action === 'background') {
+                t.actions = [{ id: 'stop', label: 'Stop', icon: 'stop', title: 'Stop this background command', danger: true }];
+                t.output += '\n(moved to the background)';
+                post({ type: 'toast', level: 'info', message: 'Moved to the background; Claude keeps working' });
+              } else {
+                t.status = 'TERMINATED';
+                t.output += '\n^C';
+                delete t.actions;
+              }
               upsert(m.conversationId, msg);
             }
         break;
@@ -1408,6 +1482,7 @@ function showcaseHistory(cid: string): ChatMessage[] {
         `<!-- tool_call:${cid}-t-img -->`,
         `<!-- tool_call:${cid}-t-long -->`,
         `<!-- tool_call:${cid}-t-run -->`,
+        `<!-- tool_call:${cid}-t-bg -->`,
         '',
         '<!-- error -->{"title":"OpenCode provider rejected the key","userMessage":"The Anthropic key in OpenCode is invalid or expired.","shortError":"401 Unauthorized","errorCode":401,"action":"opencode_providers"}<!-- /error -->',
       ].join('\n'),
@@ -1415,6 +1490,18 @@ function showcaseHistory(cid: string): ChatMessage[] {
         { id: `${cid}-t-img`, name: 'generate_image', toolType: 'GENERATE_IMAGE', command: 'hourly chart preview', status: 'SUCCESS', output: '/home/dev/projects/nebula-weather/chart_preview.png', exitCode: 0, durationMs: 4200 },
         { id: `${cid}-t-long`, name: 'Bash', toolType: 'BASH', command: 'npm test -- --verbose', status: 'SUCCESS', output: Array.from({ length: 60 }, (_, i) => `  ✓ chart › point ${i + 1} maps to the right pixel (${(i % 7) + 1} ms)`).join('\n'), exitCode: 0, durationMs: 5100 },
         { id: `${cid}-t-run`, name: 'Bash', toolType: 'BASH', command: 'npx serve . --listen 4321', status: 'RUNNING', output: 'Serving! http://localhost:4321', exitCode: null, durationMs: 0 },
+        // Claude Code's own button on a running command (ToolCall.actions): move it to the background
+        {
+          id: `${cid}-t-bg`,
+          name: 'Bash',
+          toolType: 'BASH',
+          command: 'npm run build -- --watch',
+          status: 'RUNNING',
+          output: 'vite v6.2.0 building for production...\nwatching for file changes...',
+          exitCode: null,
+          durationMs: 0,
+          actions: [{ id: 'background', label: 'Background', icon: 'move_down', title: 'Move this command to the background; Claude keeps working' }],
+        },
       ],
       isStreaming: false,
       attachments: [],

@@ -1,6 +1,6 @@
 // What every agent backend (agy now; Claude, Codex, OpenCode next) implements for the host.
 import type { AgentKind, ArtifactSnapshot, ChatAttachment, ChatMessage, Conversation, QueuedMessage } from '../../shared/model';
-import type { AgentStatus, ApprovalView, ControlChipView, ModelsState, QuestionView, SettingItem, SettingsPage, SlashCommandView } from '../../shared/protocol';
+import type { AgentStatus, ApprovalView, ChipDetailsView, ControlChipView, ModelsState, QuestionView, SettingItem, SettingsPage, SlashCommandView } from '../../shared/protocol';
 
 /** Everything a view needs to draw one chat. Messages keep their identity when unchanged. */
 export interface ChatState {
@@ -84,6 +84,8 @@ export interface AgentBackend {
   /** Controls strip for a chat (null = defaults for the next new chat). Emit 'controls' when the defaults change. */
   controls?(conversationId: string | null): ControlChipView[];
   setControl?(conversationId: string | null, id: string, value: string): void | Promise<void>;
+  /** An 'info' chip was clicked: describe it as a card (null = no card: setControl gets 'details' and may toast). */
+  chipDetails?(conversationId: string | null, id: string): Promise<ChipDetailsView | null>;
   refreshModels(): void;
   conversationAction(id: string, action: 'delete' | 'fork' | 'rename' | 'archive' | 'unarchive', value?: string): Promise<string | void>;
   queueAction(conversationId: string, id: string, action: 'sendNow' | 'delete'): Promise<void>;

@@ -1,7 +1,8 @@
 // MermaidDiagramView / MermaidFullscreenDialog from ui/components/MarkdownContent.kt: a card with a "MERMAID DIAGRAM"
 // header, Diagram / Code pills, copy and expand buttons, the diagram (180–420dp tall) or the code as a CodeBlock, and a
 // fullscreen view with zoom. The app draws the diagram with mermaid.js in a WebView (theme 'dark' / 'default'); here
-// mermaid renders to an SVG string in the page. It is loaded the first time a message contains a diagram.
+// mermaid renders to an SVG string in the page. It is warmed up once the view is idle after start (and at once when a
+// diagram starts streaming), so the first diagram does not wait for its lazy chunks.
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type Accessor } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { MermaidConfig } from 'mermaid';
@@ -19,9 +20,14 @@ type Failed = { error: string };
 type Result = Drawn | Failed;
 
 let loading: Promise<Mermaid> | null = null;
+/** Mermaid's code is loaded (the card's placeholder says what it waits for). */
+const [loaded, setLoaded] = createSignal(false);
 function loadMermaid(): Promise<Mermaid> {
   if (!loading) {
-    loading = import('mermaid').then((m) => m.default);
+    loading = import('mermaid').then((m) => {
+      setLoaded(true);
+      return m.default;
+    });
     loading.catch(() => (loading = null));
   }
   return loading;
@@ -135,6 +141,21 @@ function renderDiagram(code: string, dark: boolean, width: number): Promise<Resu
   return p;
 }
 
+let warming: Promise<unknown> | null = null;
+/**
+ * Loads mermaid and draws a tiny flowchart once, off screen: mermaid's core, the flowchart code and the dagre layout are
+ * lazy chunks that load one after another, so the first real diagram would wait for all three.
+ */
+export function warmMermaid(): Promise<unknown> {
+  if (!warming) warming = renderDiagram('flowchart TB\n  a --> b', themeMode() === 'dark', 300);
+  return warming;
+}
+// once the view has settled: a few seconds after start, when the page is idle
+setTimeout(() => {
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => void warmMermaid(), { timeout: 5000 });
+  else void warmMermaid();
+}, 3000);
+
 let viewSeq = 0;
 /** The SVG with ids of its own: every id and #selector in it starts with the render's id (the card and the
  *  fullscreen view, or the same diagram in two messages, must not share marker / style ids). */
@@ -197,37 +218,59 @@ function PathButton(props: { d: string; title: string; onClick: () => void }) {
   );
 }
 
+/** The diagram area until the SVG is there: what it waits for (the code still streaming, mermaid loading, the layout). */
+function Waiting(props: { pending: boolean; lines: number }) {
+  return (
+    <div class="mmd-wait" role="status">
+      <span class="mmd-spin" />
+      <span class="mmd-wait-text">
+        {props.pending ? 'Writing the diagram…' : loaded() ? 'Drawing the diagram…' : 'Loading the diagram renderer…'}
+      </span>
+      <Show when={props.pending && props.lines > 1}>
+        <span class="mmd-wait-sub">{props.lines} lines so far</span>
+      </Show>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------ card
 
-export function MermaidBlock(props: { code: string }) {
+/** `pending`: the diagram's fence is still streaming (its code is not complete: nothing is drawn yet). */
+export function MermaidBlock(props: { code: string; pending?: boolean }) {
   const [tab, setTab] = createSignal(0); // 0 = Diagram, 1 = Code
   const [copied, setCopied] = createSignal(false);
   const [full, setFull] = createSignal(false);
   const [result, setResult] = createSignal<Result | null>(null);
   let card: HTMLDivElement | undefined;
   let copyTimer: number | undefined;
-  let renderTimer: number | undefined;
+  let renderFrame: number | undefined;
   let token = 0;
 
-  // (re)render when the code or the light / dark side changes; a streaming block settles before it is drawn
+  // (re)render when the code or the light / dark side changes; a diagram still streaming only gets mermaid ready
   createEffect(() => {
     const code = props.code;
     const dark = themeMode() === 'dark';
-    clearTimeout(renderTimer);
+    cancelAnimationFrame(renderFrame!);
     const t = ++token;
+    if (props.pending) {
+      void warmMermaid();
+      return;
+    }
     const hit = cached(code, dark);
     if (hit) {
       setResult(hit);
       return;
     }
-    renderTimer = window.setTimeout(() => {
+    // mermaid starts loading now; the drawing waits a frame for the card's width (the diagram's)
+    void loadMermaid().catch(() => undefined);
+    renderFrame = requestAnimationFrame(() => {
       const w = (card?.clientWidth ?? 0) - 32;
       renderDiagram(code, dark, w > 100 ? w : 600).then((r) => t === token && setResult(r));
-    }, 200);
+    });
   });
   onCleanup(() => {
     token++;
-    clearTimeout(renderTimer);
+    cancelAnimationFrame(renderFrame!);
     clearTimeout(copyTimer);
   });
 
@@ -269,15 +312,17 @@ export function MermaidBlock(props: { code: string }) {
         <IconButton class="mmd-expand" icon="open_in_full" size={28} iconSize={15} color={DIM} title="Expand" onClick={() => setFull(true)} />
       </div>
       <div class="mmd-divider" />
-      <Show when={tab() === 0} fallback={<CodeBlock code={props.code} lang="mermaid" complete />}>
+      <Show when={tab() === 0} fallback={<CodeBlock code={props.code} lang="mermaid" complete={!props.pending} />}>
         <Show
-          when={error() === null}
+          when={props.pending || error() === null}
           fallback={<ErrorView code={props.code} error={error()!} />}
         >
           <div class="mmd-body">
-            <div class="mmd-canvas">
-              <div class="mmd-svg" innerHTML={svg()} />
-            </div>
+            <Show when={!props.pending && svg()} fallback={<Waiting pending={!!props.pending} lines={props.code.split('\n').length} />}>
+              <div class="mmd-canvas">
+                <div class="mmd-svg" innerHTML={svg()} />
+              </div>
+            </Show>
           </div>
         </Show>
       </Show>

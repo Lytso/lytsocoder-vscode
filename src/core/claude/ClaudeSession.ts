@@ -516,6 +516,7 @@ export class ClaudeSession {
               if (this.transcript.permissionMode) this.permissionMode = this.transcript.permissionMode;
               // confirm what the process really runs
               void this.syncApplied();
+              void this.refreshContextUsage();
               break;
             case 'status':
               if (this.transcript.permissionMode) this.permissionMode = this.transcript.permissionMode;
@@ -547,8 +548,11 @@ export class ClaudeSession {
             // while we were away). A just-sent message starts the process itself.
             if (!st.live && this.transcript.isTurnActive && !this.awaitingProcess) this.transcript.endTurn();
             if (this.replayUntilSeq != null && st.next_seq - 1 <= this.lastSeq) this.finishReplay();
-            // a running process may use other settings than this chat last showed
-            if (st.live) void this.syncApplied();
+            // a running process may use other settings than this chat last showed (and knows the context window)
+            if (st.live) {
+              void this.syncApplied();
+              void this.refreshContextUsage();
+            }
             break;
           case 'spawned':
             // only when the start-up notice is already shown (a slow start)
@@ -560,6 +564,9 @@ export class ClaudeSession {
             if (this.replayUntilSeq != null) this.finishReplay();
             this.failReplies('Claude process exited');
             this.dropQueued('Claude Code stopped before it was delivered.');
+            // its background commands and subagents ended with it
+            this.transcript.clearBackgroundTasks();
+            queueMicrotask(() => this.b.subagentsChanged(this.id));
             const code = typeof frame.exit_code === 'number' ? frame.exit_code : 0;
             if (this.transcript.isTurnActive || code !== 0) {
               if (code !== 0) this.transcript.addError('Claude Code stopped', frame.error?.trim() || `The claude process exited with code ${code}.`);
@@ -938,6 +945,9 @@ export class ClaudeSession {
     if (typeof applied.model === 'string') this.selectResolvedModel(applied.model);
     this.appliedEffort = typeof applied.effort === 'string' ? applied.effort : null;
     if (this.effort != null && this.appliedEffort && this.appliedEffort !== this.effort) this.effort = this.appliedEffort;
+    // a process still on a level chosen earlier (the view was reloaded since) while this chat shows "Default": that
+    // level is what runs, so show it as such instead of "Default"
+    else if (this.effort == null && this.appliedEffort && this.appliedEffort !== this.b.defaultEffortFor(this.model)) this.effort = this.appliedEffort;
     this.scheduleEmit();
   }
 
@@ -965,6 +975,7 @@ export class ClaudeSession {
     const c = contextUsage(r?.response);
     if (c) {
       const window = this.b.contextLengthOf(this.model);
+      this.b.rememberContextMax(this.model, c.maxTokens);
       this.contextUsage =
         window > 0
           ? {

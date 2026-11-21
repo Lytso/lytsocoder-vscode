@@ -10,7 +10,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ChatAttachment, ChatMessage, ChoiceQuestion, ChoiceQuestionnaire, TokenUsage, ToolCall, ToolType } from '../../../shared/model';
+import type { ChatAttachment, ChatMessage, ChoiceQuestion, ChoiceQuestionnaire, TokenUsage, ToolActionView, ToolCall, ToolType } from '../../../shared/model';
 import { displayUserText } from '../text';
 import type { CodexTurnMeta } from './client';
 import { arr, num, o, obj, str, type J } from './util';
@@ -21,6 +21,13 @@ const USAGE_KEYS = ['totalTokens', 'inputTokens', 'cachedInputTokens', 'cacheWri
 const UNSAFE_ID = /[^A-Za-z0-9_-]/g;
 /** Inline previews of images sent by path (a file on this machine), at most this big. */
 const MAX_INLINE_IMAGE = 3 * 1024 * 1024;
+/**
+ * A running command's card button: Codex runs commands in its own terminals (unified exec), so one command can be
+ * ended (thread/backgroundTerminals/terminate) while the reply goes on.
+ */
+const STOP_COMMAND: ToolActionView[] = [{ id: 'stop', label: 'Stop', icon: 'stop', title: 'Stop this command (Codex goes on with the reply)', danger: true }];
+/** A command Codex runs without a terminal of its own: only stopping the whole reply ends it (the stop button). */
+const NO_ACTIONS: ToolActionView[] = [];
 
 let revCounter = 0;
 const nextRev = () => ++revCounter;
@@ -106,6 +113,8 @@ export class CodexTranscript {
   private awaitingStart = false;
   /** The model of the chat (Codex does not say per reply). */
   model: string | null = null;
+  /** Commands stopped from their card (shown as stopped, not failed). */
+  private stopped = new Set<string>();
 
   // render caches
   private turnCache = new Map<string, { key: string; messages: ChatMessage[] }>();
@@ -534,10 +543,20 @@ export class CodexTranscript {
   }
 
   /** The command a tool card shows: its item id and process (Codex's background terminal), if it has one yet. */
-  commandOfTool(toolId: string): { itemId: string; processId: string | null } | null {
+  commandOfTool(toolId: string): { itemId: string; processId: string | null; running: boolean } | null {
     for (const turn of this.turns.values())
-      for (const it of turn.items.values()) if (safeId(it.id) === toolId && it.type === 'commandExecution') return { itemId: it.id, processId: str(it.json, 'processId') };
+      for (const it of turn.items.values())
+        if (safeId(it.id) === toolId && it.type === 'commandExecution') return { itemId: it.id, processId: str(it.json, 'processId'), running: str(it.json, 'status') === 'inProgress' };
     return null;
+  }
+
+  /** A command was stopped from its card: its card says "Stopped" once Codex ends it. */
+  markStopped(itemId: string) {
+    this.stopped.add(itemId);
+    for (const turn of this.turns.values()) {
+      const it = turn.items.get(itemId);
+      if (it) bump(it);
+    }
   }
 
   /** What was asked in each turn, oldest first (as sent: hidden blocks included). */
@@ -845,9 +864,10 @@ export class CodexTranscript {
       if (pendingApproval) return 'PENDING_APPROVAL';
       if (raw === 'inProgress') return turnRunning ? 'RUNNING' : 'TERMINATED';
       if (raw === 'declined') return 'REJECTED';
-      if (raw === 'failed') return 'FAILED';
+      if (raw === 'failed') return this.stopped.has(item.id) ? 'TERMINATED' : 'FAILED';
       if (raw === 'completed') return ok ? 'SUCCESS' : 'FAILED';
-      return turnRunning ? 'RUNNING' : 'SUCCESS';
+      // no status of its own (sub-agent activity…): running only until its item/completed
+      return turnRunning && item.streaming ? 'RUNNING' : 'SUCCESS';
     };
     const id = safeId(item.id);
     const call = (name: string, toolType: ToolType, command: string, st: string, output = '', extra: Partial<ToolCall> = {}): ToolCall => ({
@@ -873,7 +893,11 @@ export class CodexTranscript {
             .filter((x): x is string => !!x)
             .join(' && ') || unwrapShell(str(j, 'command') ?? '');
         const exit = num(j, 'exitCode');
-        return call('shell', type, command, status(str(j, 'status'), exit == null || exit === 0), item.output, { exitCode: exit });
+        const st = status(str(j, 'status'), exit == null || exit === 0);
+        // while it runs: "Stop" ends only this command when Codex runs it in a terminal of its own, else no button
+        const own = !!str(j, 'processId') || (str(j, 'source') ?? '').startsWith('unifiedExec');
+        const buttons = st === 'RUNNING' ? (own ? STOP_COMMAND : NO_ACTIONS) : null;
+        return call('shell', type, command, st, item.output, { exitCode: exit, ...(buttons ? { actions: buttons } : {}) });
       }
       case 'fileChange': {
         const changes = arr(j, 'changes').map((x) => obj(x)).filter((x): x is J => x != null);

@@ -589,6 +589,8 @@ export class AgyBackend implements AgentBackend {
   private slash: SlashCommandView[] = agySlashCommands(null);
   private countdownTimer: NodeJS.Timeout | null = null;
   private quotaAfterRunTimer: NodeJS.Timeout | null = null;
+  /** When the usage limits were last read. */
+  private quotaAt = 0;
   /** The model the user last picked (the saved default): new chats start on it. */
   private selectedModel: string | null;
   /** The model each chat was last given (the app's chatModels): the pill shows it, messages use it. */
@@ -914,6 +916,15 @@ export class AgyBackend implements AgentBackend {
       // the reset countdowns ("2h 4m") tick down
       this.countdownTimer = setInterval(() => {
         if (this.quotaGroups.length) this.changed('models');
+        // a reply that runs for a long time: the limits must not stay as old as its start (one call every few minutes;
+        // only chats with recent steps count, so a chat the hub keeps marked running never refreshes forever)
+        const working =
+          [...this.convs.values()].some((c) => c.isRunning && Date.now() - c.updatedAt < 10 * 60_000) ||
+          [...this.sessions.values()].some((s) => s.listeners.size > 0 && s.busy().running);
+        if (this.hubState === 'online' && working && Date.now() - this.quotaAt > 3 * 60_000) {
+          this.quotaAt = Date.now();
+          void this.loadQuota(true);
+        }
       }, 60_000);
     }
     // the hub (re)started: the agy it runs may be a new one (installed, updated)
@@ -1020,7 +1031,7 @@ export class AgyBackend implements AgentBackend {
   }
 
   private applySummaries(resp: any, raw: Buffer) {
-    const wasRunning = [...this.convs.values()].some((c) => c.isRunning);
+    const wasRunning = new Set([...this.convs.values()].filter((c) => c.isRunning).map((c) => c.id));
     try {
       this.keepRawAnnotations(raw);
     } catch (e) {
@@ -1077,8 +1088,9 @@ export class AgyBackend implements AgentBackend {
       }
     }
     this.changed('conversations');
-    // the last running chat stopped: its usage changed (as the app, a quota-only refresh after 3 s)
-    if (wasRunning && ![...this.convs.values()].some((c) => c.isRunning)) {
+    // a running chat stopped (not only the last one): its usage changed (as the app, a quota-only refresh after 3 s;
+    // chats stopping together ask once)
+    if ([...wasRunning].some((id) => !this.convs.get(id)?.isRunning)) {
       if (this.quotaAfterRunTimer) clearTimeout(this.quotaAfterRunTimer);
       this.quotaAfterRunTimer = setTimeout(() => void this.loadQuota(true), 3000);
     }
@@ -1169,6 +1181,7 @@ export class AgyBackend implements AgentBackend {
     try {
       const res = await this.call('RetrieveUserQuotaSummary', { force_refresh: force });
       this.quotaGroups = parseQuotaSummary(res);
+      this.quotaAt = Date.now();
       this.changed('models');
     } catch (e) {
       this.log(`[agy] quota: ${errText(e)}`);

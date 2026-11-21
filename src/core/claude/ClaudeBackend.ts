@@ -5,7 +5,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { randomUUID } from 'node:crypto';
 import type { AiModel, Conversation } from '../../../shared/model';
-import type { AgentStatus, ControlChipView, ModelGroupView, ModelsState, SlashCommandView } from '../../../shared/protocol';
+import type { AgentStatus, ChipDetailsView, ControlChipView, DetailTone, ModelGroupView, ModelsState, SlashCommandView } from '../../../shared/protocol';
 import type { AgentBackend, BackendChange, ChatState, KeyValueStore, Logger, SendRequest } from '../types';
 import type { BridgeManager } from '../bridge/BridgeManager';
 import { cleanTitle, collapseExpansions, displayUserText } from '../text';
@@ -16,6 +16,7 @@ import { questionnaireFrom } from './ClaudeTranscript';
 import { ClaudeSettings } from './ClaudeSettings';
 import { ALLOW_ONCE, PLAN_PREFIX, SUGGESTION_PREFIX } from './approvals';
 import { applyClaudeQuota, claudeQuotaGroups, groupViews, scopedLimits } from './quota';
+import { countdownText } from '../agy/quota';
 import {
   PERMISSION_MODES,
   compactTokens,
@@ -58,6 +59,18 @@ const APP_COMMANDS: Record<string, string> = {
 const HIDDEN_COMMANDS = new Set(['color', 'focus', 'heapdump', '__remote-workflow', 'workflow-launch-exec', 'extra-usage', 'agents', 'import']);
 
 const SLOW = 90_000;
+
+/** The context card's category colors (free space stays an empty track). */
+const CONTEXT_COLORS = ['#D97757', '#6A9BCC', '#9C87D9', '#5BB98C', '#D9A84E', '#C96F9E', '#5FB3C2', '#8A8F98'];
+
+/** "just now", "3 min ago", "2 h ago". */
+function relativeAgo(ms: number): string {
+  if (!(ms > 0)) return 'not yet';
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 45) return 'just now';
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;
+  return `${Math.round(s / 3600)} h ago`;
+}
 /** Transcript uuids (the bridge's rewind takes only these; local replies have none). */
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -104,6 +117,8 @@ export class ClaudeBackend implements AgentBackend {
   refreshingUsage = false;
   /** The newest plan windows a chat stream reported (fresher than the cached usage call). */
   liveLimits: Record<string, UnifiedWindow> = {};
+  /** When the chat stream last reported plan windows (a newer usage call replaces them). */
+  private liveLimitsAt = 0;
 
   // ---- model picker & the next new chat's controls
   private pickerModel: string | null;
@@ -222,6 +237,9 @@ export class ClaudeBackend implements AgentBackend {
     // the reset countdowns ("2h 4m") tick down
     this.countdownTimer = setInterval(() => {
       if (this.usage) this.changed('models');
+      // a reply that runs for a long time: the limits must not stay as old as its start (the bridge caches 60 s)
+      const working = [...this.sessions.values()].some((x) => x.transcript.isTurnActive);
+      if (working && !this.refreshingUsage && Date.now() - this.usageUpdatedAt > 4 * 60_000) void this.loadUsage(false);
     }, 60_000);
   }
 
@@ -299,7 +317,20 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   modelInfo(modelId: string): ModelInfo | undefined {
-    return this.info?.models.find((m) => m.value === modelId);
+    return this.info?.models.find((m) => m.value === modelId) ?? this.info?.models.find((m) => m.resolvedModel === modelId);
+  }
+
+  /**
+   * The effort a chat on [model] runs when it sets none: settings.json's `modelSettings[<model id>].effortLevel`, else
+   * its `effortLevel`, else Claude Code's own default (Medium for every model in Claude Code 2.1; checked with
+   * get_settings and an empty config).
+   */
+  defaultEffortFor(model: string): string {
+    const st: any = this.claudeSettings?.settings ?? {};
+    const resolved = this.modelInfo(model)?.resolvedModel ?? model;
+    const own = st.modelSettings?.[resolved]?.effortLevel ?? st.modelSettings?.[model]?.effortLevel;
+    if (typeof own === 'string' && own) return own;
+    return typeof st.effortLevel === 'string' && st.effortLevel ? st.effortLevel : 'medium';
   }
 
   cliInfo(): InitializeInfo | null {
@@ -386,13 +417,15 @@ export class ClaudeBackend implements AgentBackend {
   async loadUsage(force: boolean) {
     const seq = ++this.usageSeq;
     this.refreshingUsage = true;
+    // the bridge's answer may be up to 60 s old: it replaces stream windows older than that
+    const asked = Date.now() - 60_000;
     try {
       const resp = await this.bridgeJson(`/api/claude/usage${force ? '?refresh=1' : ''}`, {}, SLOW);
       if (resp?.success) {
         this.usage = resp.usage ?? null;
         this.usageError = null;
         this.usageUpdatedAt = Date.now();
-        if (force) this.liveLimits = {};
+        if (force || this.liveLimitsAt < asked) this.liveLimits = {};
       } else this.usageError = resp?.error ?? 'Claude Code did not return usage';
     } catch (e) {
       this.usageError = e instanceof Error ? e.message : String(e);
@@ -407,12 +440,14 @@ export class ClaudeBackend implements AgentBackend {
   onLiveRateLimits(windows: Record<string, UnifiedWindow>) {
     if (!Object.keys(windows).length) return;
     this.liveLimits = windows;
+    this.liveLimitsAt = Date.now();
     this.changed('models');
   }
 
   /** A turn finished: the chat list's running state, plan usage (as the app: a cached refresh). */
   afterTurn(id: string) {
     this.runningChanged();
+    this.subagentsChanged(id);
     this.scheduleTitleRefresh(id);
     if (this.usageAfterTurnTimer) clearTimeout(this.usageAfterTurnTimer);
     this.usageAfterTurnTimer = setTimeout(() => void this.loadUsage(false), 3000);
@@ -706,15 +741,20 @@ export class ClaudeBackend implements AgentBackend {
     );
     const levels = info?.supportedEffortLevels ?? [];
     if (levels.length) {
-      const applied = s?.appliedEffort ?? null;
+      // "Default" always says which level that is for this model (settings.json or Claude Code's own); a process that
+      // runs another level shows that level (ClaudeSession.syncApplied), never "Default"
+      const def = effortLabel(s?.effort == null && s?.appliedEffort ? s.appliedEffort : this.defaultEffortFor(model));
       chips.push({
         id: 'effort',
-        // "Default" shows the level the process really runs when the CLI reported it
-        label: `Effort · ${effortLabel(effort)}${effort == null && applied ? ` (${effortLabel(applied)})` : ''}`,
+        label: effort == null ? `Effort · Default (${def})` : `Effort · ${effortLabel(effort)}`,
         title: 'Effort',
         kind: 'select',
         value: effort ?? 'default',
-        options: [null, ...levels].map((l) => ({ value: l ?? 'default', label: effortLabel(l), description: effortDescription(l) })),
+        options: [null, ...levels].map((l) => ({
+          value: l ?? 'default',
+          label: l == null ? `Default (${def})` : effortLabel(l),
+          description: l == null ? "This model's level from your settings, or Claude Code's default" : effortDescription(l),
+        })),
         note: 'How much work Claude puts into each reply.',
         icon: 'speed',
         tone: effort != null ? 'accent' : 'muted',
@@ -728,10 +768,23 @@ export class ClaudeBackend implements AgentBackend {
         const warm = !c.compacted && c.ttlMs > 0 && left > 0;
         chips.push({ id: 'cache', label: warm ? `Cache ${Math.floor((left + 59_999) / 60_000)}m` : 'Cache cold', title: 'Prompt cache', kind: 'info', value: warm ? 'warm' : 'cold', icon: 'timer', tone: warm ? 'success' : 'muted' });
       }
-      const ctx = s.contextUsage;
-      if (ctx) chips.push({ id: 'context', label: `Context ${Math.floor(ctx.percentage)}%`, title: 'Context window', kind: 'info', value: String(ctx.percentage), icon: 'data_usage', tone: usageTone(ctx.percentage / 100) });
-      const w = this.liveLimits.five_hour;
-      if (w && !custom) chips.push({ id: 'limit', label: `5h ${Math.floor(w.utilization * 100)}%`, title: 'Usage', kind: 'info', value: String(w.utilization), icon: 'bolt', tone: usageTone(w.utilization) });
+      const ctx = this.contextOf(s);
+      if (ctx)
+        chips.push({
+          id: 'context',
+          label: ctx.max > 0 ? `Context ${Math.floor((ctx.used * 100) / ctx.max)}%` : `Context ${compactTokens(ctx.used)}`,
+          title: 'Context window',
+          kind: 'info',
+          value: String(ctx.used),
+          icon: 'data_usage',
+          tone: ctx.max > 0 ? usageTone(ctx.used / ctx.max) : 'muted',
+        });
+      // the 5h window: the chat stream's numbers, else the usage call's
+      const five = custom ? null : (claudeQuotaGroups(this.usage, this.liveLimits)[0]?.fiveHour ?? null);
+      if (five) {
+        const used = 1 - five.remaining;
+        chips.push({ id: 'limit', label: `5h ${Math.floor(used * 100)}%`, title: 'Usage', kind: 'info', value: String(used), icon: 'bolt', tone: usageTone(used) });
+      }
       // the app's "Restart chat": a provider chat picks up changed provider settings with a new process
       if (custom && s.processLive && !s.transcript.isTurnActive) chips.push({ id: 'restart', label: 'Restart', title: 'Restart chat', kind: 'action', value: 'run', icon: 'restart_alt', tone: 'muted' });
     }
@@ -744,7 +797,7 @@ export class ClaudeBackend implements AgentBackend {
   }
 
   /** The text behind an info chip (the app's cache / context / usage dialogs). */
-  private async chipDetails(s: ClaudeSession | null, id: string): Promise<string | null> {
+  private async chipText(s: ClaudeSession | null, id: string): Promise<string | null> {
     switch (id) {
       case 'cache': {
         const c = s?.transcript.cacheInfo;
@@ -770,6 +823,131 @@ export class ClaudeBackend implements AgentBackend {
     }
   }
 
+  /**
+   * The chat's context window: the running process's exact numbers (get_context_usage), else an estimate from its last
+   * request's input (what the cache timer also uses) and the window size last seen for that model.
+   */
+  private contextOf(s: ClaudeSession): { used: number; max: number; exact: boolean } | null {
+    const c = s.contextUsage;
+    if (c && c.totalTokens > 0) return { used: c.totalTokens, max: c.maxTokens, exact: true };
+    const last = s.transcript.cacheInfo;
+    if (!last || last.compacted || last.recacheTokens <= 0) return null;
+    const resolved = this.modelInfo(s.model)?.resolvedModel ?? s.transcript.sessionModel ?? s.model;
+    const max = this.contextLengthOf(s.model) || (this.store.get<Record<string, number>>('claude.contextMax') ?? {})[resolved] || 0;
+    return { used: last.recacheTokens, max, exact: false };
+  }
+
+  /** Remembers a model's context window (get_context_usage) for estimates when no process runs. */
+  rememberContextMax(model: string, maxTokens: number) {
+    if (!(maxTokens > 0) || providerOf(model)) return;
+    const resolved = this.modelInfo(model)?.resolvedModel ?? model;
+    const all = { ...(this.store.get<Record<string, number>>('claude.contextMax') ?? {}) };
+    if (all[resolved] === maxTokens) return;
+    all[resolved] = maxTokens;
+    this.store.set('claude.contextMax', all);
+  }
+
+  /** An info chip as a card (context window, prompt cache, plan usage, fast mode). */
+  async chipDetails(conversationId: string | null, id: string): Promise<ChipDetailsView | null> {
+    const raw = conversationId ? this.sessions.get(conversationId) : undefined;
+    const s = raw && (raw.prepared || this.isOnDisk(raw.id) || !raw.transcript.isEmpty) ? raw : null;
+    const base = { chipId: id, conversationId, subtitle: s ? `Claude Code · ${this.modelLabel(s.model)}` : 'Claude Code' };
+    switch (id) {
+      case 'context': {
+        if (!s) return { ...base, title: 'Context window', note: 'Shows once this chat has started (send a message first).' };
+        const exact = s.processLive ? await s.refreshContextUsage() : null;
+        if (exact && exact.maxTokens > 0) this.rememberContextMax(s.model, exact.maxTokens);
+        const est = this.contextOf(s);
+        if (!est) return { ...base, title: 'Context window', note: 'Shows after the first reply of this chat.' };
+        const pct = est.max > 0 ? (est.used * 100) / est.max : null;
+        const tone: DetailTone = pct == null ? 'muted' : pct >= 90 ? 'error' : pct >= 70 ? 'warn' : 'ok';
+        const parts = exact?.categories.filter((k) => k.tokens > 0) ?? [];
+        return {
+          ...base,
+          title: 'Context window',
+          headline: {
+            value: est.max > 0 ? `${compactTokens(est.used)} / ${compactTokens(est.max)} tokens` : `${compactTokens(est.used)} tokens`,
+            caption: pct != null ? `${Math.floor(pct)}% used${est.exact ? '' : ' (from the last reply)'}` : 'Window size not known yet',
+            tone,
+          },
+          breakdown:
+            parts.length && est.max > 0
+              ? {
+                  total: est.max,
+                  parts: parts.map((k, i) => ({
+                    label: k.name,
+                    value: k.tokens,
+                    text: compactTokens(k.tokens),
+                    free: /^free space/i.test(k.name),
+                    color: /^free space/i.test(k.name) ? null : CONTEXT_COLORS[i % CONTEXT_COLORS.length],
+                  })),
+                }
+              : null,
+          note: est.exact
+            ? 'When it fills up, Claude Code compacts the conversation by itself. Compact now to free space earlier.'
+            : 'Exact numbers show while Claude Code runs for this chat.',
+          actions: s.processLive && !s.transcript.isTurnActive ? [{ id: 'compact', label: 'Compact now' }] : [],
+        };
+      }
+      case 'cache': {
+        const c = s?.transcript.cacheInfo;
+        if (!c) return { ...base, title: 'Prompt cache', note: 'No cache information yet.' };
+        const left = c.anchorMs + c.ttlMs - Date.now();
+        const warm = !c.compacted && c.ttlMs > 0 && left > 0;
+        const min = Math.floor((left + 59_999) / 60_000);
+        return {
+          ...base,
+          title: 'Prompt cache',
+          headline: {
+            value: c.compacted ? 'Compacted' : warm ? `${min} min left` : 'Expired',
+            caption: warm ? 'Messages sent now reuse the cache and cost less' : 'The next message caches the conversation again',
+            tone: warm ? 'ok' : 'muted',
+          },
+          meters: warm ? [{ label: `${c.ttlMs >= 3_600_000 ? '1-hour' : '5-minute'} cache`, used: 1 - left / c.ttlMs, text: `${min} min left`, tone: min <= 1 ? 'warn' : 'ok' }] : [],
+          rows: [
+            { label: 'Cached', value: `${compactTokens(c.recacheTokens)} tokens` },
+            { label: 'Last request', value: relativeAgo(c.anchorMs) },
+          ],
+          note: c.compacted ? 'The conversation was compacted, so your next message caches it again.' : null,
+        };
+      }
+      case 'limit': {
+        const groups = claudeQuotaGroups(this.usage, this.liveLimits);
+        if (!groups.length) return { ...base, title: 'Plan usage', note: this.usageError ?? 'No plan limits reported for this account.' };
+        const meters: NonNullable<ChipDetailsView['meters']> = [];
+        const meter = (label: string, w: { remaining: number; resetAt: number | null } | null) => {
+          if (!w) return;
+          const used = Math.max(0, Math.min(1, 1 - w.remaining));
+          const reset = countdownText(w.resetAt);
+          meters.push({ label, used, text: `${Math.round(used * 100)}% used`, detail: reset ? `Resets in ${reset}` : null, tone: used >= 0.9 ? 'error' : used >= 0.7 ? 'warn' : 'ok' });
+        };
+        const all = groups[0];
+        meter('Current session (5 hours)', all.fiveHour);
+        meter('This week (all models)', all.weekly[0] ?? null);
+        for (const g of groups.slice(1)) meter(`This week (${g.title})`, g.weekly[0] ?? null);
+        return {
+          ...base,
+          subtitle: 'Claude Code · your plan',
+          title: 'Plan usage',
+          meters,
+          note: `Updated ${relativeAgo(Math.max(this.usageUpdatedAt, this.liveLimitsAt))}.`,
+          actions: [{ id: 'refresh', label: 'Refresh' }],
+        };
+      }
+      case 'fast': {
+        const fast = s?.fastMode ?? this.info?.fast_mode_state ?? 'off';
+        return {
+          ...base,
+          title: 'Fast mode',
+          headline: { value: fast === 'on' ? 'On' : 'Off', tone: fast === 'on' ? 'accent' : 'muted' },
+          note: 'Fast mode makes this model answer faster on extra-usage pricing. Send /fast in the chat to turn it on or off.',
+        };
+      }
+      default:
+        return null;
+    }
+  }
+
   controls(conversationId: string | null): ControlChipView[] {
     const s = conversationId ? this.sessions.get(conversationId) : undefined;
     return this.controlsFor(s && (s.prepared || this.isOnDisk(s.id) || !s.transcript.isEmpty) ? s : null);
@@ -779,8 +957,16 @@ export class ClaudeBackend implements AgentBackend {
     const s = conversationId ? this.sessions.get(conversationId) : undefined;
     const live = s && (s.prepared || this.isOnDisk(s.id) || !s.transcript.isEmpty) ? s : null;
     if (value === 'details') {
-      const text = await this.chipDetails(live, id);
+      const text = await this.chipText(live, id);
       if (text) this.notify('info', text);
+      return;
+    }
+    // a chip card's button (chipDetails actions)
+    if (value.startsWith('action:')) {
+      const action = value.slice(7);
+      if (action === 'refresh') await this.loadUsage(true);
+      else if (action === 'compact' && live && conversationId)
+        await this.send({ conversationId, isNew: false, text: '/compact', attachments: [], modelId: null, workspaceUri: null });
       return;
     }
     if (live && id === 'switch') {
@@ -886,7 +1072,23 @@ export class ClaudeBackend implements AgentBackend {
   /** Tool card actions: "terminate" a running command interrupts the turn (the app's terminateRunningTerminalTool). */
   async toolAction(conversationId: string, toolId: string, action: string) {
     const s = this.sessions.get(conversationId);
-    if (!s || action !== 'terminate') return;
+    if (!s) return;
+    // Claude Code cannot stop one command; it can move a running one to the background (its Ctrl+B) and stop a
+    // background one (control requests background_tasks / stop_task)
+    if (action === 'background') {
+      const r = await s.request({ subtype: 'background_tasks', tool_use_id: toolId }, 15_000);
+      if (r?.response?.backgrounded === false) this.notify('info', 'This command can no longer be moved to the background.');
+      else if (r?.subtype === 'error') this.notify('warning', `Could not move it to the background: ${r.error ?? 'unknown error'}`);
+      return;
+    }
+    if (action === 'stopTask') {
+      const task = s.transcript.backgroundTaskOf(toolId);
+      if (!task) return;
+      const r = await s.request({ subtype: 'stop_task', task_id: task }, 15_000);
+      if (r?.subtype === 'error') this.notify('warning', `Could not stop it: ${r.error ?? 'unknown error'}`);
+      return;
+    }
+    if (action !== 'terminate') return;
     const tool = s.transcript.toChatMessages().flatMap((m) => m.toolCalls).find((t) => t.id === toolId);
     if (tool && tool.status !== 'RUNNING' && tool.status !== 'PENDING_APPROVAL') return;
     s.interrupt();
@@ -930,11 +1132,26 @@ export class ClaudeBackend implements AgentBackend {
 
   /** The bridge's subagent runs of chat [sessionId], for its transcript (links, running state). */
   subagentsOf(sessionId: string) {
-    return (this.subLists.get(sessionId) ?? []).map(toSubagentInfo);
+    // running as the drawer shows it (subagentCanRun), not the bridge's raw guess
+    return (this.subLists.get(sessionId) ?? []).map((w) => ({ ...toSubagentInfo(w), running: this.subConvs.get(subagentConversationId(sessionId, w.agent_id))?.isRunning === true }));
   }
 
   hasRunningSubagents(sessionId: string): boolean {
-    return (this.subLists.get(sessionId) ?? []).some((a) => a.running === true);
+    return (this.subLists.get(sessionId) ?? []).some((w) => this.subConvs.get(subagentConversationId(sessionId, w.agent_id))?.isRunning === true);
+  }
+
+  /** The chat's turn ended or its process stopped: its subagents may have stopped with it. */
+  subagentsChanged(sessionId: string) {
+    if (!this.subLists.has(sessionId)) return;
+    this.rebuildSubConvs();
+    const infos = this.subagentsOf(sessionId);
+    const s = this.sessions.get(sessionId);
+    if (s) {
+      s.transcript.setSubagents(infos);
+      s.scheduleEmit();
+    }
+    for (const v of this.subViews.values()) if (v.sessionId === sessionId) v.update(infos);
+    this.changed('conversations');
   }
 
   subagentRunning(convId: string): boolean {
@@ -989,7 +1206,7 @@ export class ClaudeBackend implements AgentBackend {
       for (const w of list) {
         if (!w?.agent_id) continue;
         const id = subagentConversationId(sessionId, w.agent_id);
-        const running = w.running === true;
+        const running = w.running === true && this.subagentCanRun(sessionId, parent, w);
         next.set(id, {
           id,
           title: (w.description || w.agent_type || 'Subagent').trim(),
@@ -1012,6 +1229,25 @@ export class ClaudeBackend implements AgentBackend {
       }
     }
     this.subConvs = next;
+  }
+
+  /**
+   * The bridge calls a subagent running when it has no `finished` mark and its file changed in the last 15 min; one
+   * whose run was interrupted (or whose process died) never gets that mark. Subagents run inside their chat's Claude
+   * process, so they can only be running while that process lives (or, for a chat another program runs, while its
+   * transcript is still being written). A foreground subagent whose Agent call has its result is done.
+   */
+  private subagentCanRun(sessionId: string, parent: Conversation, w: SubagentWire): boolean {
+    const s = this.sessions.get(sessionId);
+    if (!w.background && w.tool_use_id && s) {
+      const st = s.transcript.toolStatus(w.tool_use_id);
+      if (st && st !== 'RUNNING' && st !== 'PENDING_APPROVAL') return false;
+    }
+    if (s?.processLive || s?.transcript.isTurnActive) return true;
+    if (parent.runStatus === 'RUNNING' || parent.runStatus === 'IDLE_LIVE') return true;
+    // no process of ours: only another program (Claude Code in a terminal / its own extension) can be running it
+    const written = Math.max(num(w.updated_at), parent.updatedAt);
+    return Date.now() - written < 2 * 60_000;
   }
 
   private subView(id: string): ClaudeSubagentView {

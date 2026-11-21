@@ -341,6 +341,12 @@ function ToolRow(props: { call: ToolCall }) {
     if (state.chat.agent === 'AGY') setTerminated({ command: t().command });
   };
   const stopTitle = () => (state.chat.agent === 'AGY' ? 'Stop command' : 'Stop command (stops the reply)');
+  // the agent's own buttons for this card (ToolCall.actions), instead of the default stop
+  const runAction = (e: MouseEvent, action: string) => {
+    e.stopPropagation();
+    const c = state.chat.conversationId;
+    if (c) send({ type: 'toolAction', conversationId: c, toolId: t().id, action });
+  };
   const output = createMemo(() => {
     const o = t().output;
     if (!o) return { text: '', more: 0 };
@@ -383,11 +389,34 @@ function ToolRow(props: { call: ToolCall }) {
             <Icon name="open_in_new" size={14} />
           </span>
         </Show>
-        {/* the running command's stop button (AgentToolCallCard.kt: BASH only) */}
-        <Show when={running() && type() === 'BASH'}>
-          <span class="tool-stop" role="button" title={stopTitle()} onClick={terminate}>
-            <Icon name="stop" size={12} />
-          </span>
+        {/* the agent's buttons ([] = none); else the running command's stop button (AgentToolCallCard.kt: BASH only) */}
+        <Show
+          when={t().actions}
+          fallback={
+            <Show when={running() && type() === 'BASH'}>
+              <span class="tool-stop" role="button" title={stopTitle()} onClick={terminate}>
+                <Icon name="stop" size={12} />
+              </span>
+            </Show>
+          }
+        >
+          {(acts) => (
+            <For each={acts()}>
+              {(a) => (
+                <span
+                  class="tool-act"
+                  classList={{ danger: !!a.danger, bare: !agentIcon(a.icon) }}
+                  role="button"
+                  title={a.title?.trim() || a.label}
+                  aria-label={a.label}
+                  onClick={(e) => runAction(e, a.id)}
+                >
+                  <Show when={agentIcon(a.icon)}>{(i) => <Icon name={i()} size={13} />}</Show>
+                  <span class="tool-act-label">{a.label}</span>
+                </span>
+              )}
+            </For>
+          )}
         </Show>
         <Show when={t().durationMs && t().durationMs! > 0}>
           <span class="tool-dur">{formatDuration(t().durationMs)}</span>

@@ -69,6 +69,22 @@ export interface ToolCall {
   label?: string | null;
   /** The agent's own icon name for such a tool (Material name, e.g. task_alt, send, schedule). */
   icon?: string | null;
+  /**
+   * Buttons the agent offers on this card; a click sends toolAction {action: id}. Unset: the card's default (a stop
+   * button on a running BASH card). [] = none (Claude Code cannot stop a single command: a stop would end the reply).
+   * Claude: "Background" while a command runs in the foreground, "Stop" for a command running in the background.
+   */
+  actions?: ToolActionView[] | null;
+}
+
+export interface ToolActionView {
+  id: string;
+  label: string;
+  /** Material icon name (stop, move_down…). */
+  icon?: string | null;
+  /** Tooltip. */
+  title?: string | null;
+  danger?: boolean;
 }
 
 export interface TokenUsage {

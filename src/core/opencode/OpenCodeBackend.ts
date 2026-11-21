@@ -8,7 +8,7 @@
 // list and every action keep using the id the view knows.
 import fs from 'node:fs';
 import type { AiModel, ChatAttachment, ChatMessage, Conversation } from '../../../shared/model';
-import type { AgentStatus, ApprovalView, ControlChipView, ModelsState, QuestionView, SlashCommandView } from '../../../shared/protocol';
+import type { AgentStatus, ApprovalView, ChipDetailsView, ControlChipView, DetailTone, ModelsState, QuestionView, SlashCommandView } from '../../../shared/protocol';
 import type { BridgeManager } from '../bridge/BridgeManager';
 import { attachedFilesBlock, cleanTitle, collapseExpansions } from '../text';
 import { absPath, baseName, pathToUri } from '../paths';
@@ -45,12 +45,15 @@ import {
 import { MAX_RETRIES, OpenCodeTranscript, formToolId, permissionOf, questionnaireOf, safeId, type Permission } from './OpenCodeTranscript';
 import { OpenCodeSettings } from './OpenCodeSettings';
 import { checkpoints } from '../checkpoints/client';
+import { compactTokens, usageTone } from '../claude/protocol';
 
 const EMIT_INTERVAL_MS = 33;
 /** Silence while waiting for the model before the notice shows, and before the turn is stopped. */
 const STALL_NOTICE_MS = 20_000;
 const STALL_MS = 90_000;
 const ALIAS_LIMIT = 300;
+/** The context card's colors (free space stays an empty track). */
+const CONTEXT_COLORS = ['#6A9BCC', '#5BB98C', '#D97757'];
 
 /** ChatState plus the optional fields the host forwards when it knows them (notice line, the chat's own model). */
 export type OpenCodeChatState = ChatState & { notice?: string | null; modelId?: string | null };
@@ -265,6 +268,8 @@ export class OpenCodeBackend implements AgentBackend {
   connectedProviders: string[] = [];
   modelsError: string | null = null;
   agents: OpenCodeAgent[] = [];
+  /** "provider/model" → its context window in tokens (OpenCode's model limit). */
+  private contextLimits = new Map<string, number>();
   private defaultModelId: string | null = null;
   private selectedModel: string;
   private refreshing = false;
@@ -572,6 +577,13 @@ export class OpenCodeBackend implements AgentBackend {
       const d = obj(def, 'data');
       const defaultId = d && str(d, 'id') ? `${str(d, 'providerID')}/${str(d, 'id')}` : null;
       const res = await this.client.get('/model');
+      // every model's window (hidden or turned off ones too: an old chat may use one)
+      const limits = new Map<string, number>();
+      for (const m of arr(res, 'data')) {
+        const ctx = num(obj(m, 'limit'), 'context');
+        if (str(m, 'providerID') && str(m, 'id') && ctx && ctx > 0) limits.set(`${str(m, 'providerID')}/${str(m, 'id')}`, ctx);
+      }
+      this.contextLimits = limits;
       const list: AiModel[] = arr(res, 'data')
         .filter((m) => m && typeof m === 'object' && (str(m, 'type') ?? 'chat') === 'chat' && bool(m, 'enabled') !== false && str(m, 'status') !== 'deprecated')
         .map((m) => {
@@ -600,6 +612,8 @@ export class OpenCodeBackend implements AgentBackend {
       this.allModels = list;
       this.defaultModelId = defaultId;
       this.publishModels();
+      // open chats' context chips know their model's window now
+      for (const s of this.sessions.values()) s.scheduleEmit();
     } catch (e) {
       this.modelsError = errMsg(e);
       this.log(`[opencode] models: ${this.modelsError}`);
@@ -715,12 +729,13 @@ export class OpenCodeBackend implements AgentBackend {
     const mode = this.prefMode();
     const list = this.agents.length ? this.agents : DEFAULT_AGENTS;
     const name = list.find((a) => a.id === agent)?.name ?? agent;
-    return [
+    const chips: ControlChipView[] = [
       {
         id: 'agent',
         label: capitalize(name),
         title: 'Agent',
-        note: 'Switching applies to the next message of this chat. New chats use the agent from Settings → OpenCode → Permissions.',
+        // the pick is also saved as the agent of new chats (Settings → OpenCode → Permissions shows it)
+        note: 'Switching applies to the next message of this chat and to new chats.',
         kind: 'select',
         value: agent,
         options: list.map((a) => ({ value: a.id, label: capitalize(a.name), description: agentDescription(a) })),
@@ -739,13 +754,81 @@ export class OpenCodeBackend implements AgentBackend {
         tone: mode === MODE_AUTO ? 'warn' : null,
       },
     ];
+    // the context window as of the last reply step (click: the details card)
+    const ctx = s ? this.contextOf(s) : null;
+    if (ctx)
+      chips.push({
+        id: 'context',
+        label: ctx.window > 0 ? `Context ${Math.floor((ctx.used * 100) / ctx.window)}%` : `Context ${compactTokens(ctx.used)}`,
+        title: 'Context window',
+        kind: 'info',
+        value: String(ctx.used),
+        icon: 'data_usage',
+        tone: ctx.window > 0 ? usageTone(ctx.used / ctx.window) : 'muted',
+      });
+    return chips;
+  }
+
+  /** A chat's context window: its last reply step's tokens in the window of the chat's model (else that step's). */
+  private contextOf(s: OpenCodeSession): { used: number; window: number; usage: NonNullable<ReturnType<OpenCodeTranscript['contextUsage']>> } | null {
+    const usage = s.transcript.contextUsage();
+    if (!usage) return null;
+    const window = (s.model ? this.contextLimits.get(s.model) : undefined) ?? (usage.model ? this.contextLimits.get(usage.model) : undefined) ?? 0;
+    return { used: usage.tokens, window, usage };
+  }
+
+  /** An info chip as a card (the context window). */
+  async chipDetails(conversationId: string | null, id: string): Promise<ChipDetailsView | null> {
+    if (id !== 'context') return null;
+    const ses = conversationId ? this.lookup(conversationId) : null;
+    const s = ses ? this.sessions.get(ses) : undefined;
+    const model = s?.model ?? null;
+    const base = { chipId: id, conversationId, title: 'Context window', subtitle: model ? `OpenCode · ${this.modelName(model)}` : 'OpenCode' };
+    const ctx = s ? this.contextOf(s) : null;
+    if (!s || !ctx) return { ...base, note: 'Shows after the first reply of this chat.' };
+    const { used, window, usage } = ctx;
+    const pct = window > 0 ? (used * 100) / window : null;
+    const tone: DetailTone = pct == null ? 'muted' : pct >= 90 ? 'error' : pct >= 70 ? 'warn' : 'ok';
+    const fresh = usage.input + usage.cacheWrite;
+    return {
+      ...base,
+      headline: {
+        value: window > 0 ? `${compactTokens(used)} / ${compactTokens(window)} tokens` : `${compactTokens(used)} tokens`,
+        caption: pct != null ? `${Math.floor(pct)}% used` : 'Window size not known for this model',
+        tone,
+      },
+      breakdown:
+        window > 0
+          ? {
+              total: window,
+              parts: [
+                { label: 'Cached', value: usage.cacheRead, text: compactTokens(usage.cacheRead), color: CONTEXT_COLORS[0] },
+                { label: 'New input', value: fresh, text: compactTokens(fresh), color: CONTEXT_COLORS[1] },
+                { label: 'Last reply', value: usage.output, text: compactTokens(usage.output), color: CONTEXT_COLORS[2] },
+                { label: 'Free space', value: Math.max(0, window - used), text: compactTokens(Math.max(0, window - used)), free: true },
+              ].filter((p) => p.value > 0 || p.free),
+            }
+          : null,
+      note: 'As of the last reply step. Compact the conversation to free space.',
+      actions: this.isServerSession(s.id) && !s.transcript.isTurnActive && !s.transcript.compacting ? [{ id: 'compact', label: 'Compact now' }] : [],
+    };
   }
 
   async setControl(conversationId: string | null, id: string, value: string) {
-    // OpenCode's strip has only pickers (no info / action chips)
-    if (value === 'details' || value === 'run') return;
     const ses = conversationId ? this.lookup(conversationId) : null;
     const s = ses ? this.sessions.get(ses) : undefined;
+    // a chip card's button (chipDetails actions)
+    if (value === 'action:compact') {
+      if (!ses || !this.isServerSession(ses)) return;
+      try {
+        await this.client.post(`/session/${ses}/compact`, {});
+      } catch (e) {
+        this.toast(`Could not compact: ${errMsg(e)}`, 'error', s);
+      }
+      return;
+    }
+    // the rest of OpenCode's strip are pickers (the context chip's card comes from chipDetails)
+    if (value === 'details' || value === 'run' || value.startsWith('action:')) return;
     const onServer = !!ses && this.isServerSession(ses);
     if (id === 'agent') {
       this.store.set('opencode.agent', value);
@@ -1354,13 +1437,40 @@ export class OpenCodeBackend implements AgentBackend {
 
   // ------------------------------------------------------------------ tool cards
 
-  /** Tool card actions: "terminate" a running command stops the turn (OpenCode has no per-tool stop, like the app);
-   *  "approve" / "reject" answer the tool's pending permission request. */
+  /**
+   * Tool card actions. A running shell command's card (OpenCode 2 runs each command as a shell of its own):
+   * "stop" ends only that command (DELETE /api/shell/{id} in the chat's folder: its tool fails and OpenCode goes on),
+   * "background" moves the running commands to the background (OpenCode goes on and is told when they finish).
+   * "terminate" (an older view's default stop) stops the whole reply. "approve" / "reject" answer the tool's pending
+   * permission request.
+   */
   async toolAction(conversationId: string, toolId: string, action: string): Promise<void> {
-    if (action === 'terminate' || action === 'stop') return this.stop(conversationId);
+    if (action === 'terminate') return this.stop(conversationId);
     const ses = this.lookup(conversationId);
     const s = ses ? this.sessions.get(ses) : undefined;
-    if (!s) return;
+    if (!s || !ses) return;
+    if (action === 'stop') {
+      const shell = s.transcript.shellOf(toolId);
+      if (!shell) return;
+      // the shell API is per folder: without the chat's own folder the call finds nothing (and still answers 204)
+      const dir = absPath(this.conversationFor(ses)?.workspaceUri);
+      try {
+        await this.client.del(`/shell/${encodeURIComponent(shell)}${dir ? `?location%5Bdirectory%5D=${encodeURIComponent(dir)}` : ''}`);
+        s.transcript.markStopped(toolId);
+        s.scheduleEmit();
+      } catch (e) {
+        this.toast(`Could not stop the command: ${errMsg(e)}`, 'error', s);
+      }
+      return;
+    }
+    if (action === 'background') {
+      try {
+        await this.client.post(`/session/${ses}/background`, {});
+      } catch (e) {
+        this.toast(`Could not move the command to the background: ${errMsg(e)}`, 'error', s);
+      }
+      return;
+    }
     const perm = [...s.transcript.pendingPermissions.values()].find((p) => p.toolCallId && safeId(p.toolCallId) === toolId);
     if (!perm) return;
     if (action === 'approve' || action === 'allow') await this.approval(conversationId, perm.id, 'once', false);

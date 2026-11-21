@@ -128,12 +128,29 @@ export interface RateLimits {
   primary: LimitWindow | null;
   secondary: LimitWindow | null;
   plan: string | null;
+  /** The metered bucket ("codex"); null when Codex did not say. */
+  limitId?: string | null;
 }
 
 export function limitsOf(x: J | null): RateLimits | null {
   if (!x) return null;
   const w = (v: J | null): LimitWindow | null => (v ? { usedPercent: num(v, 'usedPercent') ?? 0, windowMinutes: num(v, 'windowDurationMins'), resetsAt: num(v, 'resetsAt') } : null);
-  return { primary: w(o(x, 'primary')), secondary: w(o(x, 'secondary')), plan: str(x, 'planType') };
+  return { primary: w(o(x, 'primary')), secondary: w(o(x, 'secondary')), plan: str(x, 'planType'), limitId: str(x, 'limitId') };
+}
+
+/**
+ * A live `account/rateLimits/updated` is sparse: a missing window or plan keeps the one already known, and an update
+ * of another bucket (a model's own limit) does not replace the plan's limits shown.
+ */
+export function mergeLimits(prev: RateLimits | null, next: RateLimits): RateLimits {
+  if (!prev) return next;
+  if (prev.limitId && next.limitId && prev.limitId !== next.limitId) return prev;
+  return {
+    primary: next.primary ?? prev.primary,
+    secondary: next.secondary ?? prev.secondary,
+    plan: next.plan ?? prev.plan,
+    limitId: next.limitId ?? prev.limitId ?? null,
+  };
 }
 
 /** "5h", "7d", "30d", "45m" (the app's codexQuotaWindows label). */

@@ -15,6 +15,7 @@ import type {
   AgentStatus,
   ApprovalView,
   ChatPatch,
+  ChipDetailsView,
   ControlChipView,
   ChatSearchHit,
   ConversationAction,
@@ -172,6 +173,8 @@ export const [editorContext, setEditorContext] = createSignal<EditorContextView 
 export const [incomingAttachments, setIncomingAttachments] = createSignal<{ list: ChatAttachment[]; n: number } | null>(null);
 /** Bumped when the host asks for the cursor in the composer. */
 export const [focusTick, setFocusTick] = createSignal(0);
+/** The last chip details card from the host (the controls strip shows it anchored to its chip). */
+export const [chipDetails, setChipDetails] = createSignal<ChipDetailsView | null>(null, { equals: false });
 
 export const send = (msg: ViewToHost) => host.send(msg);
 
@@ -366,6 +369,9 @@ function onHostMessage(msg: HostToView) {
       break;
     case 'focusComposer':
       setFocusTick((n) => n + 1);
+      break;
+    case 'chipDetails':
+      setChipDetails(msg.details);
       break;
   }
 }

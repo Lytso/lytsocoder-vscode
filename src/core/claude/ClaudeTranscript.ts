@@ -3,7 +3,7 @@
 // Also tracks what the chat controls need: permission mode, model, prompt-cache timing, plan limits.
 // Finished turns keep their ChatMessage object between calls (cached per turn version), so the host sends only diffs.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { ChatAttachment, ChatMessage, ChoiceQuestionnaire, TokenUsage, ToolCall, ToolType } from '../../../shared/model';
+import type { ChatAttachment, ChatMessage, ChoiceQuestionnaire, TokenUsage, ToolActionView, ToolCall, ToolType } from '../../../shared/model';
 import { displayUserText } from '../text';
 import { num, str, type UnifiedWindow } from './protocol';
 
@@ -150,8 +150,41 @@ export class ClaudeTranscript {
   private turns: Turn[] = [];
   private seenUuids = new Set<string>();
   private tools = new Map<string, ToolState>();
+  /** The status of tool call [id] in this chat (undefined = not in it). */
+  toolStatus(id: string): string | undefined {
+    return this.tools.get(id)?.status;
+  }
+
+  /** The background task that runs tool call [toolId]'s command, while it runs. */
+  backgroundTaskOf(toolId: string): string | null {
+    for (const [task, tool] of this.taskToTool) if (tool === toolId && this.bgTasks.has(task)) return task;
+    return null;
+  }
+
+  /** The process ended: its background tasks ended with it. */
+  clearBackgroundTasks() {
+    if (!this.bgTasks.size) return;
+    for (const id of this.bgTasks) {
+      const t = this.tools.get(this.taskToTool.get(id) ?? '');
+      if (t) this.touch(t.turn);
+    }
+    this.bgTasks.clear();
+  }
+
+  /**
+   * A Bash card's buttons: Claude Code cannot stop one command (a stop ends the reply), so a running one offers
+   * "Background" (it keeps running, Claude goes on) and one running in the background offers "Stop".
+   */
+  private bashActions(t: ToolState): ToolActionView[] {
+    if (t.status === 'RUNNING' && !t.background && this.isTurnActive)
+      return [{ id: 'background', label: 'Background', icon: 'move_down', title: 'Move this command to the background: it keeps running and Claude goes on' }];
+    if (this.backgroundTaskOf(t.id)) return [{ id: 'stopTask', label: 'Stop', icon: 'stop', title: 'Stop this background command', danger: true }];
+    return [];
+  }
   private pending = new Map<string, PendingPermission>();
   private taskToTool = new Map<string, string>();
+  /** Background tasks of the running process (background_tasks_changed); its commands' cards offer Stop. */
+  private bgTasks = new Set<string>();
   private activeTurn: AssistantTurn | null = null;
   private currentStreamMessageId: string | null = null;
   private stepCounter = 0;
@@ -174,6 +207,7 @@ export class ClaudeTranscript {
     this.tools.clear();
     this.pending.clear();
     this.taskToTool.clear();
+    this.bgTasks.clear();
     this.activeTurn = null;
     this.currentStreamMessageId = null;
     this.stepCounter = 0;
@@ -705,7 +739,19 @@ export class ClaudeTranscript {
         }
         break;
       }
+      case 'background_tasks_changed': {
+        // the process's current background tasks (a command moved there, run_in_background, background agents)
+        const tasks: any[] = Array.isArray(s.tasks) ? s.tasks : [];
+        const next = new Set(tasks.filter((t) => typeof t?.task_id === 'string' && !/^(completed|failed|killed|stopped)$/i.test(str(t.status))).map((t) => t.task_id as string));
+        for (const id of new Set([...this.bgTasks, ...next])) {
+          const t = this.tools.get(this.taskToTool.get(id) ?? '');
+          if (t) this.touch(t.turn);
+        }
+        this.bgTasks = next;
+        break;
+      }
       case 'task_notification': {
+        if (typeof s.task_id === 'string') this.bgTasks.delete(s.task_id);
         const toolId = str(s.tool_use_id) || (typeof s.task_id === 'string' ? this.taskToTool.get(s.task_id) : undefined);
         if (!toolId) return;
         const t = this.tools.get(toolId);
@@ -1010,7 +1056,11 @@ export class ClaudeTranscript {
         if (!tool || HIDDEN_TOOLS.has(tool.name)) continue;
         if (!toolCalls.some((c) => c.id === tool.id)) {
           const agentId = tool.agentId ?? this.subagentsByTool.get(tool.id)?.agentId ?? null;
-          toolCalls.push({ ...toToolCall(tool), subagentConversationId: agentId ? this.subagentConversationId(agentId) : null });
+          toolCalls.push({
+            ...toToolCall(tool),
+            actions: tool.name === 'Bash' ? this.bashActions(tool) : undefined,
+            subagentConversationId: agentId ? this.subagentConversationId(agentId) : null,
+          });
           contentParts.push(`<!-- tool_call:${tool.id} -->`);
         }
       } else {

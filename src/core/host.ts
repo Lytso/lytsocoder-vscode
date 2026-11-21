@@ -1370,9 +1370,24 @@ export class AppHost {
         if (!this.platform.downloadUrl) throw new Error('Downloads are not available here');
         await this.platform.downloadUrl(msg.url, msg.name);
         return;
-      case 'setControl':
-        await this.backendFor(msg.agent)?.setControl?.(msg.conversationId, msg.id, msg.value);
+      case 'setControl': {
+        const b = this.backendFor(msg.agent);
+        // an info chip: the agent's card (ChipDetailsView) when it has one, else its old toast
+        if (msg.value === 'details' && b?.chipDetails) {
+          const details = await b.chipDetails(msg.conversationId, msg.id).catch((e) => ({
+            chipId: msg.id,
+            conversationId: msg.conversationId,
+            title: 'Details',
+            error: e instanceof Error ? e.message : String(e),
+          }));
+          if (details) {
+            v.port.post({ type: 'chipDetails', details });
+            return;
+          }
+        }
+        await b?.setControl?.(msg.conversationId, msg.id, msg.value);
         return;
+      }
       case 'requestNotes':
         v.port.post({ type: 'notes', notes: this.notes?.all() ?? [] });
         return;

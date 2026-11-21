@@ -119,10 +119,9 @@ export function BlockView(props: {
         <MathBlock latex={as('math').latex} />
       </Match>
       <Match when={b().t === 'mermaid'}>
-        {/* drawn once the fence is complete (partial code would be a syntax error) */}
-        <Show when={!props.streaming} fallback={<CodeBlock code={as('mermaid').code} lang="mermaid" complete={false} />}>
-          <MermaidBlock code={as('mermaid').code} />
-        </Show>
+        {/* drawn as soon as its fence is closed, even while the reply goes on (partial code would be a syntax error);
+            until then the card shows that the diagram is being written */}
+        <MermaidBlock code={as('mermaid').code} pending={!!props.streaming && as('mermaid').open} />
       </Match>
       <Match when={b().t === 'memory'}>
         <MemoryChip body={as('memory').body} complete={as('memory').complete} />

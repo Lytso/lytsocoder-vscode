@@ -94,6 +94,40 @@ export interface ControlChipView {
   disabled?: boolean;
 }
 
+// ------------------------------------------------------------------------------------------------ chip details
+// A click on an 'info' chip (context, cache, usage…) sends setControl {value: 'details'}; a backend that can describe
+// it answers with a `chipDetails` card the view shows anchored to the chip (like Claude Code's own VS Code extension
+// shows the context window), instead of a toast.
+
+export type DetailTone = 'ok' | 'warn' | 'error' | 'muted' | 'accent' | null;
+
+export interface ChipDetailsView {
+  /** The chip it belongs to (ControlChipView.id). */
+  chipId: string;
+  conversationId: string | null;
+  title: string;
+  /** Under the title ("Claude Code · Opus 5.5"). */
+  subtitle?: string | null;
+  /** The main figure ("124.3k / 200k tokens", "4 min left") with a caption and a tone. */
+  headline?: { value: string; caption?: string | null; tone?: DetailTone } | null;
+  /**
+   * One stacked bar with a legend (the context window by category). `total` = the whole bar; a part with `free` is
+   * drawn as empty space. `text` = the value as shown ("12.4k").
+   */
+  breakdown?: { total: number; parts: { label: string; value: number; text?: string | null; color?: string | null; free?: boolean }[] } | null;
+  /** Bars (usage windows, cache time left): `used` from 0 to 1; `text` on the right ("62% used"), `detail` under it ("resets in 2 h"). */
+  meters?: { label: string; used: number; text?: string | null; detail?: string | null; tone?: DetailTone }[];
+  /** Label / value lines. */
+  rows?: { label: string; value: string; tone?: DetailTone }[];
+  /** Small text at the bottom. */
+  note?: string | null;
+  /** Buttons: setControl {id: chipId, value: 'action:<id>'} (e.g. "Compact now"). */
+  actions?: { id: string; label: string; primary?: boolean }[];
+  /** Still being read: the view shows a spinner until the full card comes. */
+  loading?: boolean;
+  error?: string | null;
+}
+
 /** State of the chat a view shows. Every field is optional in a patch: absent = unchanged. */
 export interface ChatPatch {
   /** Replace everything (new conversation opened). Fields not in the patch reset to defaults. */
@@ -730,7 +764,10 @@ export type HostToView =
    */
   | { type: 'jarvisNewChat'; agent: AgentKind; modelId: string | null }
   /** Jarvis (a tool, a notice) wants this view to show a screen: a chat, the notes, or a settings page. */
-  | { type: 'jarvisNavigate'; screen: 'chat' | 'notes' | 'settings'; conversationId?: string | null; settingsPage?: string | null };
+  | { type: 'jarvisNavigate'; screen: 'chat' | 'notes' | 'settings'; conversationId?: string | null; settingsPage?: string | null }
+  // ---- chip details
+  /** Answer to setControl {value: 'details'} when the agent describes the chip (see ChipDetailsView). */
+  | { type: 'chipDetails'; details: ChipDetailsView };
 
 export type ConversationAction = 'delete' | 'fork' | 'rename' | 'archive' | 'unarchive' | 'copyId' | 'openInEditor';
 

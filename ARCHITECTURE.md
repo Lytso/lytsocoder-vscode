@@ -210,6 +210,7 @@ settings.
 | Windows: `~/.antigem/run/browser.pipe` | Name of the browser link's pipe | While the window that serves the browser link runs |
 | `~/.gemini/<antigravity-ide \| antigravity \| antigravity-cli>/` | Antigravity history, written by the agy hub | While agy runs |
 | `~/.claude/projects/…` (read) | Claude Code transcripts, read to show chat history and subagents | Opening chats |
+| `~/.codex/sessions/…` (read) | The end of a Codex chat's record file (last 1 MB), for its context window | Opening a Codex chat |
 | Agent configuration (agy `mcp_config.json`, Claude `settings.json` / MCP config, Codex `config.toml`, OpenCode config) | Changed through each agent's own API or CLI | Only when the user changes that agent's settings in AntiGem |
 | `~/.antigem_bridge/checkpoints/` | Project checkpoints: a hidden git repository per project (the project's own `.git` is only read) | Before each message, only for projects with checkpoints on (off by default); restore / delete on request |
 | `~/.antigem/memory/` (+ `~/.antigem_bridge/memory/state.json`) | Agent memories and cleaned copies of past chats, read by the agents | Only with *Agent memory* on (off by default): after each turn; delete / clear on request |

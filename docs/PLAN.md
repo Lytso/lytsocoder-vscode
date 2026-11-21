@@ -187,6 +187,21 @@ Bridge work goes into the fork in `bridge/` (port from `agy_ide_bridge/`).
   real VS Code: the new UI (checkpoint sheet + diff tab, memory chip, full prompt, Skills pages, STEM cards, Gemmy).
 - Also fixed: deleting a chat asked twice (drawer dialog + VS Code dialog); only the drawer's dialog is left.
 
+**Fixes 2026-11-21 (chips, running states, usage, tool stop):**
+- Chip pickers and the subagents list are desktop popovers in the model picker's look (`ChipPopover.tsx`); info chips
+  open a card (`ChipDetailsView`, `AgentBackend.chipDetails`) instead of a toast: Claude context / cache / usage / fast,
+  Codex and OpenCode context (new chips).
+- Claude: effort "Default (X)" names the real level (settings.json `modelSettings` / `effortLevel`, else Medium); a
+  process on another level shows that level. Subagents run only while their chat's process lives. Context chip right
+  after a chat opens (estimate without a process). Usage re-read every 4 min during long replies; stale stream windows
+  no longer win over a newer usage call.
+- Tool stop: Claude Bash = "Background" (control `background_tasks`) / "Stop" for background commands (`stop_task`);
+  Codex = real per-command stop (`thread/backgroundTerminals/terminate`); OpenCode = Stop + Background per shell; agy
+  unchanged (`ToolCall.actions`).
+- Codex limits merged from sparse updates; agy quota re-read every 3 min while running. Mermaid draws as soon as its
+  fence closes (was: after the whole reply), with a placeholder and an idle warm-up.
+- Open: Codex commands left running after a turn show "Stopped" (needs `thread/backgroundTerminals/list`).
+
 ### 7.1 Big features (bridge + UI)
 1. Project checkpoints: snapshot a project, restore later (`ef103aa`; bridge `pkg/checkpoint/`, checkpoint UI).
 2. Agent memory + chat history (`4c7e1df`; bridge `pkg/memory/`, Claude `--add-dir ~/.antigem/memory`, Memory and

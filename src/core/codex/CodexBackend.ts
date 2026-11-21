@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
 import type { AiModel, ChatAttachment, ChatMessage, Conversation, QueuedMessage } from '../../../shared/model';
-import type { AgentStatus, ApprovalView, ControlChipView, ModelsState, QuestionView, SlashCommandView } from '../../../shared/protocol';
+import type { AgentStatus, ApprovalView, ChipDetailsView, ControlChipView, DetailTone, ModelsState, QuestionView, SlashCommandView } from '../../../shared/protocol';
 import type { AgentBackend, BackendChange, ChatState, KeyValueStore, Logger, SendRequest } from '../types';
 import type { BridgeManager } from '../bridge/BridgeManager';
 import { attachedFilesBlock, cleanTitle, collapseExpansions, displayUserText, extractAttachedFiles, type FileRef } from '../text';
@@ -36,9 +36,11 @@ import {
   effortLabel,
   errText,
   limitsOf,
+  mergeLimits,
   modeDescription,
   modeIcon,
   modeLabel,
+  num,
   o,
   obj,
   quotaWindows,
@@ -51,6 +53,7 @@ import {
   type RateLimits,
 } from './util';
 import { remainingText } from '../agy/settingsKit';
+import { compactTokens, usageTone } from '../claude/protocol';
 import { checkpoints } from '../checkpoints/client';
 
 const EMIT_INTERVAL_MS = 33;
@@ -66,6 +69,23 @@ const TITLE_SCHEMA = {
 };
 const QUOTA_GROUP = 'All models';
 const MAX_ALIASES = 300;
+/** While a reply runs, the usage limits are read again when no update came for this long. */
+const LIMITS_STALE_MS = 4 * 60_000;
+/** The context card's colors (free space stays an empty track). */
+const CONTEXT_COLORS = ['#6A9BCC', '#D97757'];
+
+/** The chat's context window as of its last model request (`thread/tokenUsage/updated`, or the rollout's last token count). */
+interface CodexContext {
+  /** Tokens in the window: the last request's input and output. */
+  used: number;
+  /** The model's window (0: not known). */
+  window: number;
+  input: number;
+  cached: number;
+  output: number;
+  /** When it was reported (0: read from the chat's record on disk). */
+  at: number;
+}
 
 /** Sending a message cannot work in this state. */
 const BLOCKING: CodexStateName[] = ['NOT_INSTALLED', 'DISABLED', 'OUTDATED', 'OFFLINE', 'SIGNED_OUT'];
@@ -157,6 +177,8 @@ class CodexSession {
   turnStartedAt = 0;
   /** turn/start was sent and has not answered yet (an "idle" status meanwhile does not end the reply). */
   turnStartPending = false;
+  /** The context window as of the last model request (null: not known yet, or compacted since). */
+  context: CodexContext | null = null;
   closed = false;
   private emitTimer: NodeJS.Timeout | null = null;
   private disposeTimer: NodeJS.Timeout | null = null;
@@ -267,6 +289,8 @@ export class CodexBackend implements AgentBackend {
   bridgeStatus: CodexStatus | null = null;
   account: CodexAccount | null = null;
   rateLimits: RateLimits | null = null;
+  /** When the usage limits were last read or reported. */
+  private limitsAt = 0;
   login: CodexLogin | null = null;
   cliJob: CodexCliJob | null = null;
 
@@ -440,6 +464,12 @@ export class CodexBackend implements AgentBackend {
       // the reset countdowns ("2h 4m") tick down
       this.countdownTimer = setInterval(() => {
         if (this.rateLimits) this.changed('models');
+        // a reply that runs for a long time: its limits must not stay as old as its start (Codex reports them after
+        // each model request; this covers a long command or a quiet stretch)
+        if (this.account && this.isWorking() && Date.now() - this.limitsAt > LIMITS_STALE_MS) {
+          this.limitsAt = Date.now();
+          void this.refreshRateLimits();
+        }
       }, 60_000);
     while (!this.disposed) {
       await this.refreshThreads();
@@ -519,6 +549,11 @@ export class CodexBackend implements AgentBackend {
       const needsAuth = bool(res, 'requiresOpenaiAuth') === true;
       this.setState(!acc && needsAuth ? 'SIGNED_OUT' : 'READY');
       if (acc) await this.refreshRateLimits();
+      else if (this.rateLimits) {
+        // signed out: the last account's limits are not this one's
+        this.rateLimits = null;
+        this.changed('models');
+      }
     } catch (e) {
       // Codex did not start (or answer): the status shows why
       this.bridgeStatus = { ...(this.bridgeStatus ?? {}), error: errText(e) };
@@ -532,10 +567,18 @@ export class CodexBackend implements AgentBackend {
     try {
       const res = await this.client.rpc('account/rateLimits/read');
       this.rateLimits = limitsOf(o(res, 'rateLimits'));
+      this.limitsAt = Date.now();
       this.changed('models');
     } catch (e) {
       this.log(`[codex] rate limits: ${errText(e)}`);
     }
+  }
+
+  /** A reply of a listed or open chat is running. */
+  private isWorking(): boolean {
+    for (const id of this.running) if (this.listedThreads.has(id)) return true;
+    for (const s of this.uniqueSessions()) if (s.transcript.isTurnActive) return true;
+    return false;
   }
 
   /** Reads the usage limits again shortly (a burst of finished turns asks once). */
@@ -681,6 +724,8 @@ export class CodexBackend implements AgentBackend {
     this.store.set('codex.effort', effort);
     this.changed('controls');
     this.changed('settings');
+    // open chats without an effort of their own show the new one (picked in Settings)
+    this.emitAll();
   }
 
   autoTitle(): boolean {
@@ -806,16 +851,19 @@ export class CodexBackend implements AgentBackend {
     if (s && plan && !running && s.transcript.lastPlan)
       chips.push({ id: 'implementPlan', label: 'Implement plan', kind: 'action', value: 'run', icon: 'play_arrow', tone: 'success' });
     chips.push({ id: 'plan', label: plan ? 'Plan mode' : 'Plan', kind: 'toggle', value: plan ? 'on' : 'off', icon: 'lightbulb', tone: plan ? 'accent' : null });
-    const efforts = this.effortsOf(this.chatModel(s) ?? this.selectedModelId());
+    const model = this.chatModel(s) ?? this.selectedModelId();
+    const efforts = this.effortsOf(model);
     if (efforts.length) {
+      // the level every message is sent with (Codex is always told one), the model's own default marked in the list
       const effort = this.effortFor(s);
+      const modelDefault = (model && this.modelDefaultEffort.get(model)) || null;
       chips.push({
         id: 'effort',
         label: `Reasoning: ${effortLabel(effort)}`,
         title: 'Reasoning · how long Codex thinks before answering',
         kind: 'select',
         value: effort,
-        options: efforts.map((e) => ({ value: e, label: effortLabel(e), description: effortDescription(e) })),
+        options: efforts.map((e) => ({ value: e, label: effortLabel(e), description: e === modelDefault ? `${effortDescription(e)} This model's default.` : effortDescription(e) })),
         icon: 'psychology',
         tone: ['high', 'xhigh', 'max', 'ultra'].includes(effort) ? 'accent' : null,
       });
@@ -831,7 +879,57 @@ export class CodexBackend implements AgentBackend {
       icon: modeIcon(mode),
       tone: mode === MODE_FULL ? 'warn' : null,
     });
+    // the context window as of the last model request (click: the details card)
+    const ctx = s?.context;
+    if (ctx && ctx.used > 0)
+      chips.push({
+        id: 'context',
+        label: ctx.window > 0 ? `Context ${Math.floor((ctx.used * 100) / ctx.window)}%` : `Context ${compactTokens(ctx.used)}`,
+        title: 'Context window',
+        kind: 'info',
+        value: String(ctx.used),
+        icon: 'data_usage',
+        tone: ctx.window > 0 ? usageTone(ctx.used / ctx.window) : 'muted',
+      });
     return chips;
+  }
+
+  /** An info chip as a card (the context window). */
+  async chipDetails(conversationId: string | null, id: string): Promise<ChipDetailsView | null> {
+    if (id !== 'context') return null;
+    const s = conversationId ? (this.sessions.get(conversationId) ?? null) : null;
+    const model = this.chatModel(s) ?? this.selectedModelId();
+    const base = { chipId: id, conversationId, title: 'Context window', subtitle: model ? `Codex · ${this.modelName(model)}` : 'Codex' };
+    const ctx = s?.context;
+    if (!s || !ctx || ctx.used <= 0) return { ...base, note: 'Shows after the first reply of this chat.' };
+    const pct = ctx.window > 0 ? (ctx.used * 100) / ctx.window : null;
+    const tone: DetailTone = pct == null ? 'muted' : pct >= 90 ? 'error' : pct >= 70 ? 'warn' : 'ok';
+    const running = s.transcript.isTurnActive;
+    return {
+      ...base,
+      headline: {
+        value: ctx.window > 0 ? `${compactTokens(ctx.used)} / ${compactTokens(ctx.window)} tokens` : `${compactTokens(ctx.used)} tokens`,
+        caption: pct != null ? `${Math.floor(pct)}% used` : 'Window size not known yet',
+        tone,
+      },
+      breakdown:
+        ctx.window > 0
+          ? {
+              total: ctx.window,
+              parts: [
+                { label: 'Conversation', value: ctx.input, text: compactTokens(ctx.input), color: CONTEXT_COLORS[0] },
+                { label: 'Last reply', value: ctx.output, text: compactTokens(ctx.output), color: CONTEXT_COLORS[1] },
+                { label: 'Free space', value: Math.max(0, ctx.window - ctx.used), text: compactTokens(Math.max(0, ctx.window - ctx.used)), free: true },
+              ].filter((p) => p.value > 0 || p.free),
+            }
+          : null,
+      rows: [
+        { label: 'Cached', value: `${compactTokens(ctx.cached)} of ${compactTokens(ctx.input)} input tokens` },
+        ...(ctx.at > 0 ? [{ label: 'Last request', value: agoText(ctx.at) }] : []),
+      ],
+      note: 'As of the last model request. When it gets full, Codex compacts the conversation by itself; compact now to free space earlier.',
+      actions: running ? [] : [{ id: 'compact', label: 'Compact now' }],
+    };
   }
 
   async setControl(conversationId: string | null, id: string, value: string) {
@@ -847,6 +945,11 @@ export class CodexBackend implements AgentBackend {
               ? 'Plan mode: Codex explores and proposes a plan (it may ask questions) instead of changing anything.'
               : null;
       if (note) this.notify('info', note);
+      return;
+    }
+    // a chip card's button (chipDetails actions)
+    if (value.startsWith('action:')) {
+      if (value === 'action:compact' && s) await this.compact(s);
       return;
     }
     switch (id) {
@@ -1209,7 +1312,11 @@ export class CodexBackend implements AgentBackend {
     }
     // each turn's model and token use: Codex's record on disk (history has neither)
     const meta = await this.client.turnsMeta(tid).catch(() => null);
+    // the context chip of a chat opened now (live updates only come while it replies): the record's last token count
+    const rollout = str(read, 'path');
+    const disk = rollout && (restore || !s.context) ? await rolloutContext(rollout) : null;
     if (s.closed || s.threadId !== tid) return;
+    if (disk && (!s.context || s.context.at === 0)) s.context = disk;
     const active = str(o(read, 'status'), 'type') === 'active';
     // a turn started while this was loading: the snapshot is older than what is shown, its end reloads again
     if (!active && s.transcript.isTurnActive && s.turnStartedAt > startEpoch) return;
@@ -1546,31 +1653,38 @@ export class CodexBackend implements AgentBackend {
   }
 
   /**
-   * Tool card actions. "terminate": ends a running command (Codex's background terminal of that command); when
-   * Codex cannot (not a background terminal, already gone), the turn is stopped instead, like the app.
+   * Tool card actions. "stop" (the card's Stop; "terminate" from an older view): ends one running command, the one
+   * Codex runs in its own terminal (thread/backgroundTerminals/terminate); the reply goes on (tested: the command ends
+   * with exit -1 and Codex answers). A command Codex cannot end alone is never answered by stopping the whole reply:
+   * that is the stop button's job.
    */
   async toolAction(conversationId: string, toolId: string, action: string) {
-    if (action !== 'terminate') return;
+    if (action !== 'stop' && action !== 'terminate') return;
     const s = this.sessions.get(conversationId);
     const tid = this.threadIdOf(conversationId);
     const cmd = s?.transcript.commandOfTool(toolId) ?? null;
-    let processId = cmd?.processId ?? null;
-    if (cmd && !processId) {
-      // the item names its process only once it became a background terminal: ask Codex
+    if (!cmd || !cmd.running) return;
+    let processId = cmd.processId;
+    if (!processId) {
+      // an older item may not name its process: ask Codex for the command's terminal
       const list = await this.client.rpc('thread/backgroundTerminals/list', { threadId: tid }).catch(() => null);
       processId = str(arr(list, 'data').find((x) => str(x, 'itemId') === cmd.itemId), 'processId');
     }
     if (processId) {
       try {
         const res = await this.client.rpc('thread/backgroundTerminals/terminate', { threadId: tid, processId });
-        this.log(`[codex] terminate ${processId}: ${JSON.stringify(res)}`);
-        if (res?.terminated === true) return;
+        if (res?.terminated === true) {
+          s?.transcript.markStopped(cmd.itemId);
+          s?.scheduleEmit();
+          return;
+        }
       } catch (e) {
         this.log(`[codex] terminate ${processId}: ${errText(e)}`);
       }
     }
-    // not a background terminal (or already gone): stop the turn, as the app does
-    await this.stop(conversationId);
+    // it ended meanwhile: nothing to say
+    if (s && !s.transcript.commandOfTool(toolId)?.running) return;
+    this.notify('info', 'Codex cannot stop this command on its own. Stop the reply to end it.');
   }
 
   // ------------------------------------------------------------------ retry & edit (Codex's thread/revert)
@@ -2023,9 +2137,12 @@ export class CodexBackend implements AgentBackend {
         break;
       }
       case 'account/rateLimits/updated': {
+        // a sparse update: merged into what is known (a missing window is not a cleared one); nothing known yet: read it
         const l = limitsOf(o(p, 'rateLimits'));
-        if (l) {
-          this.rateLimits = l;
+        if (l && !this.rateLimits) this.refreshRateLimitsSoon();
+        else if (l) {
+          this.rateLimits = mergeLimits(this.rateLimits, l);
+          this.limitsAt = Date.now();
           this.changed('models');
         }
         break;
@@ -2072,6 +2189,28 @@ export class CodexBackend implements AgentBackend {
       case 'model/rerouted':
         s.notice = `Codex switched from ${str(p, 'fromModel') ?? '?'} to ${str(p, 'toModel') ?? '?'}`;
         break;
+      case 'thread/tokenUsage/updated': {
+        // the context chip: the last request's tokens in the model's window
+        const u = o(p, 'tokenUsage');
+        const ctx = contextOf(o(u, 'last'), num(u, 'modelContextWindow'), Date.now());
+        if (ctx) {
+          s.context = ctx;
+          s.scheduleEmit();
+        }
+        break;
+      }
+      case 'item/completed':
+        // compacted: the window holds a summary now; known again after the next request
+        if (str(o(p, 'item'), 'type') === 'contextCompaction' && s.context) {
+          s.context = null;
+          s.scheduleEmit();
+        }
+        break;
+    }
+    // the stream works again after a retry: the "Reconnecting…" notice is stale
+    if (s.notice?.startsWith('Reconnecting') && method.startsWith('item/')) {
+      s.notice = null;
+      s.scheduleEmit();
     }
     const changed = s.transcript.apply(method, p);
     if (method === 'turn/completed') {
@@ -2190,6 +2329,65 @@ export class CodexBackend implements AgentBackend {
 }
 
 // ------------------------------------------------------------------------------------------------ helpers
+
+/** "just now", "3 min ago", "2 h ago". */
+function agoText(ms: number): string {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 45) return 'just now';
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min ago`;
+  return `${Math.round(s / 3600)} h ago`;
+}
+
+/** A `thread/tokenUsage/updated` (or a rollout token count, in snake case) as the chat's context window. */
+function contextOf(last: J | null, window: number | null, at: number): CodexContext | null {
+  const n = (a: string, b: string) => num(last, a) ?? num(last, b) ?? 0;
+  const used = n('totalTokens', 'total_tokens');
+  if (!last || used <= 0) return null;
+  return { used, window: window ?? 0, input: n('inputTokens', 'input_tokens'), cached: n('cachedInputTokens', 'cached_input_tokens'), output: n('outputTokens', 'output_tokens'), at };
+}
+
+/** Rollout tails already read: path → size, mtime and what they held. */
+const rolloutCache = new Map<string, { size: number; mtime: number; ctx: CodexContext | null }>();
+
+/**
+ * The context window of a chat that was not followed live: the last token count in its rollout (the JSONL Codex keeps
+ * at thread.path), unless the chat was compacted after it. Only the file's end is read.
+ */
+async function rolloutContext(file: string): Promise<CodexContext | null> {
+  let fh: fs.promises.FileHandle | null = null;
+  try {
+    const st = await fs.promises.stat(file);
+    const hit = rolloutCache.get(file);
+    if (hit && hit.size === st.size && hit.mtime === st.mtimeMs) return hit.ctx;
+    const len = Math.min(st.size, 1024 * 1024);
+    fh = await fs.promises.open(file, 'r');
+    const buf = Buffer.alloc(len);
+    await fh.read(buf, 0, len, st.size - len);
+    const lines = buf.toString('utf8').split('\n');
+    let ctx: CodexContext | null = null;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const type = /^\{"timestamp":"[^"]*",(?:"ordinal":\d+,)?"type":"([a-z_]+)"/.exec(lines[i])?.[1];
+      if (type === 'compacted') break;
+      if (type !== 'event_msg' || !lines[i].includes('"type":"token_count"')) continue;
+      let info: J | null = null;
+      try {
+        info = o(o(JSON.parse(lines[i]), 'payload'), 'info');
+      } catch {
+        continue;
+      }
+      if (!info) continue;
+      ctx = contextOf(o(info, 'last_token_usage'), num(info, 'model_context_window'), 0);
+      break;
+    }
+    rolloutCache.set(file, { size: st.size, mtime: st.mtimeMs, ctx });
+    if (rolloutCache.size > 64) rolloutCache.delete(rolloutCache.keys().next().value!);
+    return ctx;
+  } catch {
+    return null;
+  } finally {
+    await fh?.close().catch(() => undefined);
+  }
+}
 
 function pendingOf(key: string, method: string, params: J): Pending {
   return {
