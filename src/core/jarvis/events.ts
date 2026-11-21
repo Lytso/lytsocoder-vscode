@@ -164,7 +164,7 @@ export class Events {
 
   private handling(events: JarvisEvent[]): string {
     const kinds = new Set(events.map((e) => e.kind));
-    let s = "These are automatic messages from the AntiGem extension about work YOU delegated; they are not the user's words. ";
+    let s = "These are automatic messages from the LytsoCoder extension about work YOU delegated; they are not the user's words. ";
     s += "Each <event> is separate: read every <task_reply> as that sub-agent's own report.\n";
     s += '- Write the user a short update in this chat (a line per event, plain and concrete).\n';
     if (kinds.has('task_done'))
@@ -193,7 +193,7 @@ export class Events {
 
   /** The whole message for a batch: label for the chat, structured events, the manager's brief, how to handle it. */
   format(owner: string, events: JarvisEvent[], guardNote: string | null): string {
-    let body = `${OPEN}${events.length}" from="AntiGem extension (automatic, not typed by the user)">\n`;
+    let body = `${OPEN}${events.length}" from="LytsoCoder extension (automatic, not typed by the user)">\n`;
     events.forEach((e, i) => (body += this.toXml(e, i + 1)));
     body += '</jarvis_events>\n\n';
     if (guardNote?.trim()) body += `<app_note>\n${guardNote}\n</app_note>\n\n`;

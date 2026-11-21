@@ -24,7 +24,7 @@ export interface ThemePrefsAccess {
 }
 
 const INSTRUCTIONS =
-  "Controls AntiGem's color themes. theme_list shows every theme (built-in and custom) and which is used for the light " +
+  "Controls LytsoCoder's color themes. theme_list shows every theme (built-in and custom) and which is used for the light " +
   'and the dark side; theme_apply switches. To make a theme: call theme_tokens once to see every color and what it is for, then ' +
   'theme_create with a name, dark=true/false and at least the seed colors (background, surface, card, surface_variant, on_background, ' +
   'on_surface_variant, primary, secondary, tertiary, success, warning, danger, info, code_bg and the syntax_* colors); every other color is ' +
@@ -44,7 +44,7 @@ function tools(): McpTool[] {
     S.tool('theme_apply', 'Use a theme (for its side: light or dark). If the app\'s mode would not show that side, the mode switches to it.', ['id'], idProp),
     S.tool(
       'theme_set_mode',
-      "vscode (the default: VS Code's own theme colors, live), system (Auto: VS Code's light / dark side with AntiGem themes), light or dark.",
+      "vscode (the default: VS Code's own theme colors, live), system (Auto: VS Code's light / dark side with LytsoCoder themes), light or dark.",
       ['mode'],
       { mode: S.prop('string', 'The mode', ['vscode', 'system', 'light', 'dark']) },
     ),
@@ -86,7 +86,7 @@ export function themeMcp(prefs: ThemePrefsAccess): McpServerDef {
     const k = idOrName.trim().toLowerCase();
     return all().find((t) => t.id.toLowerCase() === k) ?? all().find((t) => t.name.toLowerCase() === k);
   };
-  /** vscode: VS Code's own theme colors (the default); system: VS Code's light / dark side with AntiGem themes. */
+  /** vscode: VS Code's own theme colors (the default); system: VS Code's light / dark side with LytsoCoder themes. */
   const mode = (): 'vscode' | 'system' | 'light' | 'dark' => {
     const t = String(prefs.get().theme ?? 'vscode');
     if (t === 'light' || t === 'dark' || t === 'vscode') return t;
@@ -132,7 +132,7 @@ export function themeMcp(prefs: ThemePrefsAccess): McpServerDef {
     const m = mode();
     const patch: Record<string, unknown> = t.dark ? { darkTheme: t.id } : { lightTheme: t.id };
     let switched: string | null = null;
-    // matching VS Code shows no AntiGem theme: keep following VS Code's side, with this theme's colors
+    // matching VS Code shows no LytsoCoder theme: keep following VS Code's side, with this theme's colors
     if (m === 'vscode') {
       patch.theme = 'auto';
       switched = 'auto (follows VS Code light / dark)';

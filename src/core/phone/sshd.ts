@@ -144,7 +144,7 @@ export function keyFile(): KeyFile {
 }
 
 /**
- * Puts the phones' lines in place: removes every line of [removeIds] (null = every AntiGem phone) and adds [add]. Other
+ * Puts the phones' lines in place: removes every line of [removeIds] (null = every LytsoCoder phone) and adds [add]. Other
  * lines are kept as they are. Throws a message for the user (a cancelled UAC prompt, no permission…).
  */
 export async function editKeys(removeIds: string[] | null, add: string[], file = keyFile()): Promise<void> {

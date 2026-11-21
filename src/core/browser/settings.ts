@@ -1,4 +1,4 @@
-// Settings → Browser: the AntiGem Chrome extension link (status, native host registration, extension install steps,
+// Settings → Browser: the LytsoCoder Chrome extension link (status, native host registration, extension install steps,
 // blocklist, tests). Host-owned page 'browser'.
 import os from 'node:os';
 import path from 'node:path';
@@ -54,7 +54,7 @@ export class BrowserSettings implements BrowserHooks {
     }
     switch (b.status) {
       case 'listening':
-        return { text: 'Waiting for AntiGem Browser Bridge (is Chrome open, the extension installed and the native host registered?)', tone: 'warn' };
+        return { text: 'Waiting for LytsoCoder Browser Bridge (is Chrome open, the extension installed and the native host registered?)', tone: 'warn' };
       case 'busy':
         return { text: b.error || 'Another VS Code window serves the browser link', tone: 'muted' };
       case 'unsupported':
@@ -72,7 +72,7 @@ export class BrowserSettings implements BrowserHooks {
       id: 'browser',
       label: 'Browser',
       icon: 'language',
-      description: 'Let agents use Chrome through the AntiGem extension',
+      description: 'Let agents use Chrome through the LytsoCoder extension',
       badge: connected ? 'Connected' : this.d.bridge.status === 'listening' ? 'Not connected' : null,
     };
   }
@@ -84,7 +84,7 @@ export class BrowserSettings implements BrowserHooks {
     const registered = reg.browsers.filter((b) => b.registered);
     const regText = !registered.length
       ? 'Not registered yet'
-      : `${registered.map((b) => `${b.name}${b.manifestOk ? '' : ' (outdated)'}`).join(', ')}${reg.wrapperCurrent ? '' : ' — the host points at an older AntiGem install: register again'}`;
+      : `${registered.map((b) => `${b.name}${b.manifestOk ? '' : ' (outdated)'}`).join(', ')}${reg.wrapperCurrent ? '' : ' — the host points at an older LytsoCoder install: register again'}`;
     const bundled = extensionVersion(this.d.extensionDir);
     const installed = extensionVersion(INSTALL_DIR);
     const connected = this.d.bridge.connected();
@@ -108,7 +108,7 @@ export class BrowserSettings implements BrowserHooks {
           id: 'browser.how',
           label: 'How it works',
           value:
-            'Agents get a "Browser" MCP (add it from each agent’s MCP page). They work only in tabs of the “AntiGem” tab group in Chrome; ' +
+            'Agents get a "Browser" MCP (add it from each agent’s MCP page). They work only in tabs of the “LytsoCoder” tab group in Chrome; ' +
             'other tabs need your OK, and sites on the blocklist are never opened or controlled. Chrome talks to VS Code through native messaging — no network port.',
           tone: 'muted',
         },
@@ -124,16 +124,16 @@ export class BrowserSettings implements BrowserHooks {
         {
           kind: 'button',
           id: 'browser.store',
-          label: '1 · Install AntiGem Browser Bridge',
+          label: '1 · Install LytsoCoder Browser Bridge',
           description:
-            'Opens its page in the Chrome Web Store: press “Add to Chrome” (it works in Edge, Brave and other Chromium browsers too). Pin the AntiGem icon to see its status.',
+            'Opens its page in the Chrome Web Store: press “Add to Chrome” (it works in Edge, Brave and other Chromium browsers too). Pin the LytsoCoder icon to see its status.',
           style: connected ? 'default' : 'primary',
         },
         {
           kind: 'button',
           id: 'browser.register',
           label: '2 · Register with Chrome',
-          description: `Lets the extension start AntiGem's native host (${HOST_NAME}) in ${installedBrowsers.length ? installedBrowsers.map((b) => b.name).join(', ') : 'your Chromium browsers'}. Registered: ${regText}`,
+          description: `Lets the extension start LytsoCoder's native host (${HOST_NAME}) in ${installedBrowsers.length ? installedBrowsers.map((b) => b.name).join(', ') : 'your Chromium browsers'}. Registered: ${regText}`,
           style: registered.length && reg.wrapperCurrent && registered.every((b) => b.manifestOk) ? 'default' : 'primary',
         },
         ...(registered.length
@@ -147,7 +147,7 @@ export class BrowserSettings implements BrowserHooks {
                     ? `Deletes the registry keys …\\NativeMessagingHosts\\${HOST_NAME} of every browser and ${tilde(defaultWrapperPath())}`
                     : `Deletes ${HOST_NAME}.json from every browser and the wrapper ${tilde(defaultWrapperPath())}`,
                 style: 'danger' as const,
-                confirm: 'Remove the AntiGem native host from all browsers? The extension cannot reach VS Code until you register again.',
+                confirm: 'Remove the LytsoCoder native host from all browsers? The extension cannot reach VS Code until you register again.',
               },
             ]
           : []),
@@ -158,13 +158,13 @@ export class BrowserSettings implements BrowserHooks {
     const manual: SettingsSection = {
       id: 'browser-manual',
       title: 'Can’t use the Chrome Web Store?',
-      description: 'Install the copy that comes with AntiGem instead (then register it with step 2 above).',
+      description: 'Install the copy that comes with LytsoCoder instead (then register it with step 2 above).',
       items: [
         {
           kind: 'button',
           id: 'browser.install',
           label: 'Open the extension folder',
-          description: `Copies the AntiGem extension${bundled ? ` ${bundled}` : ''} to ${tilde(INSTALL_DIR)}${installed ? ` (installed: ${installed}${installed !== bundled ? ' — update it, then press Reload on chrome://extensions' : ''})` : ''} and opens it`,
+          description: `Copies the LytsoCoder extension${bundled ? ` ${bundled}` : ''} to ${tilde(INSTALL_DIR)}${installed ? ` (installed: ${installed}${installed !== bundled ? ' — update it, then press Reload on chrome://extensions' : ''})` : ''} and opens it`,
         },
         {
           kind: 'info',
@@ -173,7 +173,7 @@ export class BrowserSettings implements BrowserHooks {
           value:
             `Open chrome://extensions (brave://extensions, edge://extensions), turn on Developer mode, press “Load unpacked” and pick ${tilde(INSTALL_DIR)}` +
             // the macOS folder picker hides folders whose name starts with a dot
-            `${process.platform === 'darwin' ? ' (press Cmd+Shift+. in the folder picker to show the hidden .antigem folder)' : ''}. Its id must be ${EXTENSION_ID}. Pin the AntiGem icon to see its status.`,
+            `${process.platform === 'darwin' ? ' (press Cmd+Shift+. in the folder picker to show the hidden .antigem folder)' : ''}. Its id must be ${EXTENSION_ID}. Pin the LytsoCoder icon to see its status.`,
           tone: 'muted',
         },
         { kind: 'button', id: 'browser.copyPath', label: 'Copy the extension folder path', description: tilde(INSTALL_DIR) },
@@ -201,7 +201,7 @@ export class BrowserSettings implements BrowserHooks {
       title: 'Test',
       items: [
         { kind: 'button', id: 'browser.test', label: 'Test the connection', description: 'Asks the extension to answer', disabled: !connected },
-        { kind: 'button', id: 'browser.testOpen', label: 'Open a test page', description: 'Opens example.com in a new tab of the AntiGem tab group', disabled: !connected },
+        { kind: 'button', id: 'browser.testOpen', label: 'Open a test page', description: 'Opens example.com in a new tab of the LytsoCoder tab group', disabled: !connected },
       ],
     };
 
@@ -225,7 +225,7 @@ export class BrowserSettings implements BrowserHooks {
     switch (id) {
       case 'browser.store':
         this.d.openUrl(STORE_URL);
-        return 'Opened AntiGem Browser Bridge in the Chrome Web Store: press “Add to Chrome”, then Register with Chrome (step 2)';
+        return 'Opened LytsoCoder Browser Bridge in the Chrome Web Store: press “Add to Chrome”, then Register with Chrome (step 2)';
       case 'browser.install': {
         const dir = installExtensionFiles(this.d.extensionDir, INSTALL_DIR);
         this.d.openFolder(dir);
@@ -251,7 +251,7 @@ export class BrowserSettings implements BrowserHooks {
       }
       case 'browser.testOpen': {
         const r = await this.d.bridge.call<{ tabId: string }>('tabs.open', { url: 'https://example.com', newTab: true }, 30_000);
-        return `Opened example.com in tab ${r.tabId} (AntiGem tab group)`;
+        return `Opened example.com in tab ${r.tabId} (LytsoCoder tab group)`;
       }
       default:
         return;

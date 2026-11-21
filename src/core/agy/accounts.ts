@@ -83,7 +83,7 @@ export class AgyAccounts {
     const p = action ? `/api/agy/accounts/${action}` : '/api/agy/accounts';
     const res = await this.bridge.fetch(p, body ? { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } } : {});
     const text = await res.text();
-    if (res.status === 404 && !action) throw new Error('The bridge is older than AntiGem (no account switching). Restart the bridge.');
+    if (res.status === 404 && !action) throw new Error('The bridge is older than LytsoCoder (no account switching). Restart the bridge.');
     let o: any;
     try {
       o = JSON.parse(text);

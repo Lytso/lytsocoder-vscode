@@ -1,4 +1,4 @@
-// Port of ui/settings/SetupWithAiDialog.kt: a repository AntiGem could not add by itself (no skills, no plugin or
+// Port of ui/settings/SetupWithAiDialog.kt: a repository LytsoCoder could not add by itself (no skills, no plugin or
 // marketplace it can read, a failed download…) is handed to an AI agent. The app shows the request to copy; here the
 // button's form picks the agent and what to install (the app's chips), and a new chat of that agent opens with the
 // request in its message box (the user reads it and sends it). The host handles the button (setupChatRequest).
@@ -8,7 +8,7 @@ import type { SettingFormField, SettingItem } from '../../../shared/protocol';
 /** The button's id on every page that has it (the host runs it, whatever the page). */
 export const SETUP_WITH_AI = 'setupWithAi';
 
-/** What the user wants out of a repository AntiGem could not install by itself. */
+/** What the user wants out of a repository LytsoCoder could not install by itself. */
 export type RepoSetupKind = 'all' | 'skills' | 'plugins';
 
 const KIND_LABEL: Record<RepoSetupKind, string> = { all: 'All', skills: 'Skills', plugins: 'Plugin / marketplace' };
@@ -89,7 +89,7 @@ export function repoSetupPrompt(source: string, agent: AgentKind, kind: RepoSetu
 }
 
 /**
- * The "Set up with AI" button for a repository AntiGem couldn't add (`reason`: why). Its form picks the agent (the
+ * The "Set up with AI" button for a repository LytsoCoder couldn't add (`reason`: why). Its form picks the agent (the
  * page's agent first) and what to install; the source rides along in a field that never shows.
  */
 export function setupWithAiItem(agent: AgentKind, source: string, reason: string | null, primary = false): SettingItem {
@@ -106,7 +106,7 @@ export function setupWithAiItem(agent: AgentKind, source: string, reason: string
     id: SETUP_WITH_AI,
     label: 'Set up with AI',
     style: primary ? 'primary' : 'default',
-    description: `AntiGem couldn't add ${source.trim()} by itself${why} An AI agent can read its README and set it up for you: a new chat opens with the request in its message box.`,
+    description: `LytsoCoder couldn't add ${source.trim()} by itself${why} An AI agent can read its README and set it up for you: a new chat opens with the request in its message box.`,
     form,
   };
 }

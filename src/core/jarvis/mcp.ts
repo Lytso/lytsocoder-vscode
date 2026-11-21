@@ -1,4 +1,4 @@
-// jarvis_mcp: lets the model drive AntiGem directly (port of the app's JarvisMcp.kt, minus voice and GitHub): tasks it
+// jarvis_mcp: lets the model drive LytsoCoder directly (port of the app's JarvisMcp.kt, minus voice and GitHub): tasks it
 // manages in their own chats, missions and teams, chats of every agent, models and chat controls, approvals, screens
 // and settings pages, VS Code (projects, files, code search), help and configuration, usage, timers and Jarvis' memory.
 // Served by the extension's MCP host at /jarvis (stateful: every connection has a session id, passed as _mcp_session).
@@ -16,7 +16,7 @@ import { baseName, expandHome, pathToUri } from '../paths';
 import { TASK_LABEL, needsUserState, type Task, type Team } from './types';
 
 export const INSTRUCTIONS =
-  'Jarvis controls the AntiGem extension and leads teams of sub-agents. The first message of a Jarvis chat ' +
+  'Jarvis controls the LytsoCoder extension and leads teams of sub-agents. The first message of a Jarvis chat ' +
   'has the full guide and tool list; jarvis_help repeats it. Call these tools directly by name (no searching, no config reading). ' +
   'Big jobs go to jarvis_task_start (its own watched chat, optionally a team); pass your manager_id. Never wait or poll for tasks: ' +
   'end your turn, the extension reports back with a <jarvis_events> message. Keep multi-step work in jarvis_mission_set / jarvis_mission_update. ' +
@@ -210,7 +210,7 @@ export function jarvisTools(): McpTool[] {
     ),
     t(
       'jarvis_app_guide',
-      'How to use AntiGem: where a setting is, how to add an MCP server, the agents, the editor integration, notes, slash commands, ' +
+      'How to use LytsoCoder: where a setting is, how to add an MCP server, the agents, the editor integration, notes, slash commands, ' +
         "Jarvis' own features, troubleshooting. Give a topic or the user's words.",
       ['topic'],
       { topic: P('string', `A topic (${Guide.topics().join(', ')}) or words`) },
@@ -218,7 +218,7 @@ export function jarvisTools(): McpTool[] {
     t('jarvis_get_config', "The user's configuration: agents (accounts, versions, plans), MCP servers of each agent, Jarvis settings, look, projects.", [], {
       area: P('string', 'What to read (default overview)', ['overview', 'agents', 'mcp', 'jarvis', 'appearance', 'projects']),
     }),
-    t('jarvis_open_settings', "Show a settings page in the user's AntiGem view (e.g. jarvis, agents, claude, agy, codex, opencode, slash, context, connection).", ['section'], {
+    t('jarvis_open_settings', "Show a settings page in the user's LytsoCoder view (e.g. jarvis, agents, claude, agy, codex, opencode, slash, context, connection).", ['section'], {
       section: P('string', 'Settings page name (jarvis_app_guide topic settings lists them)'),
     }),
     t(
@@ -311,7 +311,7 @@ export function jarvisTools(): McpTool[] {
       ['mode'],
       { mode: P('string', 'The mode', ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk']), ...chatId },
     ),
-    t('jarvis_get_setting', 'Read AntiGem and Jarvis settings (look, new-chat agent, Jarvis\' own options…) with their allowed values.', [], { key: P('string', 'One key, or omit for all') }),
+    t('jarvis_get_setting', 'Read LytsoCoder and Jarvis settings (look, new-chat agent, Jarvis\' own options…) with their allowed values.', [], { key: P('string', 'One key, or omit for all') }),
     t(
       'jarvis_set_setting',
       "Change a setting (keys from jarvis_get_setting). Jarvis' own options (keys starting with jarvis_) can always be changed; app settings " +
@@ -329,7 +329,7 @@ export function jarvisTools(): McpTool[] {
       ...managerId,
     }),
     // ---- screens and VS Code
-    t('jarvis_open_screen', "Switch the user's AntiGem view to a screen.", ['screen'], { screen: P('string', 'Where to go', ['chat', 'notes', 'settings']) }),
+    t('jarvis_open_screen', "Switch the user's LytsoCoder view to a screen.", ['screen'], { screen: P('string', 'Where to go', ['chat', 'notes', 'settings']) }),
     t('jarvis_ide_list_projects', 'List the projects (this window\'s folders, saved projects, folders recent chats ran in) and which one is active for Jarvis.', [], {
       query: P('string', 'Part of a name or path'),
       ...limit,
@@ -705,7 +705,7 @@ class JarvisMcp {
   /** Hidden in front of every task's goal: how a sub-agent of Jarvis works and reports, and its team's role. */
   private subAgentBrief(team: Team | undefined): string {
     let s =
-      'You are a sub-agent of Jarvis, the lead agent of the AntiGem extension, which delegated this task to you. Work on it on your own until it is ' +
+      'You are a sub-agent of Jarvis, the lead agent of the LytsoCoder extension, which delegated this task to you. Work on it on your own until it is ' +
       'completely done: do not stop halfway to ask for confirmation, and ask a question only when you are truly blocked (it reaches Jarvis). ' +
       'Verify your work (build, tests, or running it) where that makes sense. Finish with a short report: what you did, the files you changed, ' +
       'how you verified it, and anything left open, risky or needing a decision. ' +
@@ -1273,7 +1273,7 @@ class JarvisMcp {
       // ---- app (only when the user allowed it)
       choice(
         'theme_mode',
-        "vscode (VS Code's own theme colors, the default), auto (VS Code's light / dark side with AntiGem themes), light or dark",
+        "vscode (VS Code's own theme colors, the default), auto (VS Code's light / dark side with LytsoCoder themes), light or dark",
         false,
         ['vscode', 'auto', 'light', 'dark'],
         () => String(j.host.uiPrefs().theme ?? 'vscode'),

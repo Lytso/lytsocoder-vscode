@@ -14,7 +14,7 @@ export interface SystemNote {
 /** Why desktop notifications cannot be shown here (null = they can). */
 export function systemNotifyUnavailable(remoteName: string | undefined): string | null {
   // the extension host runs on the other machine: a notification would show there, not on this screen
-  if (remoteName) return `Not in a remote window (${remoteName}): AntiGem runs on the other machine there`;
+  if (remoteName) return `Not in a remote window (${remoteName}): LytsoCoder runs on the other machine there`;
   if (process.platform === 'linux' || process.platform === 'darwin' || process.platform === 'win32') return null;
   return 'Not supported on this system';
 }
@@ -30,7 +30,7 @@ export function showSystemNote(n: SystemNote, open: () => void, log: (line: stri
 const LINUX_WAIT_MS = 30 * 60_000;
 
 function linux(n: SystemNote, open: () => void, log: (line: string) => void): Promise<boolean> {
-  const base = ['--app-name=AntiGem', ...(n.icon ? [`--icon=${n.icon}`] : [])];
+  const base = ['--app-name=LytsoCoder', ...(n.icon ? [`--icon=${n.icon}`] : [])];
   return new Promise((resolve) => {
     let settled = false;
     const done = (ok: boolean) => {
@@ -81,7 +81,7 @@ function linux(n: SystemNote, open: () => void, log: (line: string) => void): Pr
 
 function mac(n: SystemNote, log: (line: string) => void): Promise<boolean> {
   // the texts go in as arguments: nothing to escape
-  const script = ['on run argv', 'display notification (item 2 of argv) with title "AntiGem" subtitle (item 1 of argv) sound name "Glass"', 'end run'];
+  const script = ['on run argv', 'display notification (item 2 of argv) with title "LytsoCoder" subtitle (item 1 of argv) sound name "Glass"', 'end run'];
   return exec('osascript', [...script.flatMap((l) => ['-e', l]), n.title, n.body], {}, log);
 }
 

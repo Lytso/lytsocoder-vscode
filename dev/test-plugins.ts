@@ -76,7 +76,7 @@ console.log('— /plu: expansion (HostSettings.expand)');
 check('no guide set: /plu: stays as typed', s.expand('/plu:rea do it') === '/plu:rea do it');
 s.pluginGuide = (id, skill) => pluginGuide(plugins, id, skill);
 const e1 = s.expand('/plu:rea look at this apk');
-check('/plu:<id> → block with the plugin guide', e1.startsWith('<antigem-expansion command="/plu:rea">\nThe user wants you to use the custom AntiGem plugin "REA · Reverse Engineering" (id: rea): Reverse engineer anything') && e1.endsWith('</antigem-expansion> look at this apk'), e1);
+check('/plu:<id> → block with the plugin guide', e1.startsWith('<antigem-expansion command="/plu:rea">\nThe user wants you to use the custom LytsoCoder plugin "REA · Reverse Engineering" (id: rea): Reverse engineer anything') && e1.endsWith('</antigem-expansion> look at this apk'), e1);
 check('plugin guide points at the skills folder', e1.includes(`- Its skills (guides) are in ${path.join(tmp, 'rea/skills')}/: rea. Read the one that matches the task before acting.`), e1);
 check('skills-only plugin: no tools line', e1.includes('- This plugin has no tools of its own: follow its instructions with the tools you already have.'), e1);
 check('other enabled skill plugins listed (not disabled ones)', e1.includes(`Other installed plugins with skills: yt (${path.join(tmp, 'yt/skills')}/).`) && !e1.includes('off ('), e1);
@@ -85,7 +85,7 @@ check('dangling colon = no skill; chat shows /plu:rea', e2.startsWith('<antigem-
 const e3 = s.expand('please /plu:rea:rea now');
 check('/plu:<id>:<skill> → the skill file and detail dir', e3.startsWith('please <antigem-expansion command="/plu:rea:rea">') && e3.includes(`- Read the skill file fully before acting: ${reaSkill}`) && e3.includes(`- Its detail files are in ${path.join(tmp, 'rea/skills/rea')}/`) && e3.includes('call its get_skill tool with name "rea"'), e3);
 const e4 = s.expand('/plu:yt:youtube_upload');
-check('tools plugin: MCP server hint (extension_<id>)', e4.includes('come from the MCP server "extension_yt"') && e4.includes('Custom AntiGem Plugin MCP'), e4);
+check('tools plugin: MCP server hint (extension_<id>)', e4.includes('come from the MCP server "extension_yt"') && e4.includes('Custom LytsoCoder Plugin MCP'), e4);
 check('id is case-insensitive', s.expand('/plu:REA').includes('(id: rea)'));
 check('unknown plugin stays as typed', s.expand('/plu:nope x') === '/plu:nope x');
 check('disabled plugin stays as typed', s.expand('/plu:off') === '/plu:off');
@@ -147,7 +147,7 @@ const ls = listSkills(path.join(tmp, 'rea'));
 check('listSkills: detail files', ls.length === 1 && ls[0].detail_files.join() === 'setup.md', ls);
 const gs = callSkillTool(path.join(tmp, 'rea'), 'get_skill', { name: 'rea' }) as { detail_files: { file: string }[] };
 check('get_skill detail files', gs.detail_files[0].file === 'setup.md');
-check('instructions', /^This server is the custom AntiGem plugin "REA"/.test(skillInstructions('REA', ls) ?? '') && skillInstructions('x', []) === undefined);
+check('instructions', /^This server is the custom LytsoCoder plugin "REA"/.test(skillInstructions('REA', ls) ?? '') && skillInstructions('x', []) === undefined);
 
 console.log('— SDK ZIP');
 const sdk = path.join(process.cwd(), 'src', 'core', 'plugins', 'sdk');
@@ -227,11 +227,11 @@ async function runtimeTest() {
     const input = sent.filter((c) => c.command === 'cdp').flatMap((c) => c.payload.commands as { method: string; params: { type: string; x: number; y: number } }[]);
     check('automation busy + tap → agent.begin + trusted mouse at viewport fractions', t3 === 'tapped' && sent.some((c) => c.command === 'agent.begin') && input.some((i) => i.params.type === 'mousePressed' && i.params.x === 500 && i.params.y === 200), input);
     const t4 = (await rt.call('call', { id: 'brw', tool: 'zoom', args: {} })) as { isError?: boolean; content?: { text: string }[] };
-    check('unsupported API → clear error', t4?.isError === true && /not available through the AntiGem Chrome extension/.test(t4.content?.[0]?.text ?? ''), t4);
+    check('unsupported API → clear error', t4?.isError === true && /not available through the LytsoCoder Chrome extension/.test(t4.content?.[0]?.text ?? ''), t4);
     connected = false;
     listeners.forEach((f) => f());
     const t5 = (await rt.call('call', { id: 'brw', tool: 'title', args: {} })) as { isError?: boolean; content?: { text: string }[] };
-    check('disconnected → "connect the AntiGem Chrome extension"', t5?.isError === true && /AntiGem Chrome extension is not connected/.test(t5.content?.[0]?.text ?? ''), t5);
+    check('disconnected → "connect the LytsoCoder Chrome extension"', t5?.isError === true && /LytsoCoder Chrome extension is not connected/.test(t5.content?.[0]?.text ?? ''), t5);
   } catch (e) {
     check('runtime test', false, e instanceof Error ? e.message : String(e));
   } finally {

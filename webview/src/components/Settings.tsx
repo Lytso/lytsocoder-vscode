@@ -1738,7 +1738,7 @@ function AppearancePage() {
       </div>
       <div class="settings-label sub">Live Preview</div>
       <div class="settings-card preview-card" style={{ '--chat-scale': String(fontScale()) }}>
-        <div class="pv-user">How does AntiGem connect to the agents?</div>
+        <div class="pv-user">How does LytsoCoder connect to the agents?</div>
         <div class="pv-assistant">The extension talks to each agent's own server and streams its steps and tool calls into this chat.</div>
       </div>
       <div class="settings-card toggle-card" onClick={() => setUi('groupByWorkspace', !state.ui.groupByWorkspace)}>

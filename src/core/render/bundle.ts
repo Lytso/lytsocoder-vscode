@@ -1,4 +1,4 @@
-// Settings → STEM & diagrams (port of data/render/RenderBundle.kt): one zip from AntiGem's GitHub release, pinned by
+// Settings → STEM & diagrams (port of data/render/RenderBundle.kt): one zip from LytsoCoder's GitHub release, pinned by
 // size and SHA-256 (anything else is refused), unpacked into ~/.antigem/render/<tag> and served to the chat's STEM blocks
 // by the local preview server (src/core/preview/server.ts). Which parts render (all off until switched on; bundle parts
 // only once it is downloaded), what agents are told in the first message, and the compiled TikZ pictures.
@@ -18,7 +18,7 @@ import { prepareTikz, stemKindOf, stemPage, tikzCompilePage, tikzSvgPage, type P
 
 export const BUNDLE_TAG = 'render-v1';
 const ZIP_NAME = 'antigem-render-bundle-v1.zip';
-export const BUNDLE_URL = `https://github.com/Santoshkurmi/antigem/releases/download/${BUNDLE_TAG}/${ZIP_NAME}`;
+export const BUNDLE_URL = `https://github.com/Lytso/LytsoCoder/releases/download/${BUNDLE_TAG}/${ZIP_NAME}`;
 /** SHA-256 of ZIP_NAME as built by the app's scripts/render_bundle/build_render_bundle.sh: anything else is refused. */
 const BUNDLE_SHA256 = 'c5e97bbeba24d2970c8c4a7ad502ac8c4292b9ef3db5eac64287913ce954f34a';
 /** Its size in bytes (progress when the server sends no length, and shown before downloading). */
@@ -351,7 +351,7 @@ export class RenderBundle {
       );
     // Mermaid always renders (bundled with the extension)
     lines.push(`- \`\`\`mermaid: Mermaid ${MERMAID_VERSION} (offline)`);
-    let out = `## Extra blocks this chat renders (AntiGem ${BUNDLE_TAG})\n` + lines.join('\n');
+    let out = `## Extra blocks this chat renders (LytsoCoder ${BUNDLE_TAG})\n` + lines.join('\n');
     if (this.installedNow && fs.existsSync(this.guideFile())) out += `\nFull syntax, examples and limits: ${this.guideFile()} (read it before writing a block you are unsure of).`;
     return out;
   }

@@ -232,7 +232,7 @@ export function notInstalledText(
     case 'CLAUDE':
       return {
         title: 'Claude Code not found',
-        text: 'The claude CLI is not installed on this device yet. AntiGem can install it for you.',
+        text: 'The claude CLI is not installed on this device yet. LytsoCoder can install it for you.',
         action: 'Install Claude Code',
         secondary: 'Check again',
         // ClaudeStatus.NOT_INSTALLED
@@ -262,7 +262,7 @@ export function notInstalledText(
     default:
       return {
         title: 'Antigravity is not installed',
-        text: 'Antigravity (agy) is not installed yet. AntiGem can install it for you.',
+        text: 'Antigravity (agy) is not installed yet. LytsoCoder can install it for you.',
         action: 'Install agy',
         secondary: null,
         statusColor: '#F97316',

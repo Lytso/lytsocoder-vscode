@@ -100,7 +100,7 @@ export function ThemesPage() {
   const modeHint = () =>
     vscode()
       ? matchingVscode()
-        ? "Uses your VS Code theme's colors and follows it when you switch. Pick a theme below to use AntiGem's colors instead."
+        ? "Uses your VS Code theme's colors and follows it when you switch. Pick a theme below to use LytsoCoder's colors instead."
         : 'Outside VS Code this works like Auto.'
       : themeModeSetting() === 'auto'
         ? "Light or dark follows VS Code; the colors are the themes picked below."

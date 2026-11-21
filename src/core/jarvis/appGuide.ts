@@ -1,4 +1,4 @@
-// What Jarvis knows about using AntiGem in VS Code ("how do I add an MCP server", "where is the theme"), so it can guide
+// What Jarvis knows about using LytsoCoder in VS Code ("how do I add an MCP server", "where is the theme"), so it can guide
 // the user (port of the app's JarvisAppGuide.kt, topics rewritten for the extension).
 
 export interface GuideEntry {
@@ -22,7 +22,7 @@ const ENTRIES: GuideEntry[] = [
     topic: 'overview',
     keywords: ['what is', 'antigem', 'extension', 'features', 'can you', 'overview'],
     text: `
-AntiGem for VS Code puts four coding agents in one chat UI: Antigravity (agy, Google), Claude Code (Anthropic), Codex (OpenAI)
+LytsoCoder for VS Code puts four coding agents in one chat UI: Antigravity (agy, Google), Claude Code (Anthropic), Codex (OpenAI)
 and OpenCode (any provider). Every chat runs on one agent; the bridge runs the agents for every VS Code window, so chats keep
 working with no view open. It has a sidebar (the whole app) and chats in editor tabs, selection and file chips, @ mentions,
 built-in MCP servers (notes, theme, Jarvis…), notes and to-dos, custom slash commands and global context. Settings: the gear in
@@ -91,7 +91,7 @@ added to the agent of each Jarvis chat: Settings → Jarvis → Setup has an Add
     text: `
 VS Code integration: a selection in the editor is offered as a chip in the composer (Ctrl+Alt+K / Cmd+Alt+K adds it, also from
 the editor's right-click menu); type @ for files and folders; drag files from the explorer with Shift; paste images. Shell code
-blocks run in an AntiGem terminal (▶); diffs and long outputs open in editor tabs; ⋮ → Open in editor tab puts a chat beside
+blocks run in an LytsoCoder terminal (▶); diffs and long outputs open in editor tabs; ⋮ → Open in editor tab puts a chat beside
 your code. Ctrl+Alt+G focuses the chat. Jarvis opens files (jarvis_ide_open_file) and searches the project
 (jarvis_ide_search_code).
 `.trim(),
@@ -125,7 +125,7 @@ themes are made by any chat with the Theme MCP (Theme preset on an agent's MCP p
     keywords: ['bridge', 'connection', 'offline', 'restart', 'port', 'logs', 'power'],
     text: `
 The bridge (127.0.0.1:1244 by default) runs the agents and the Antigravity hub for every VS Code window. Settings → Bridge &
-connection shows its ports and log, and restarts it. The drawer's ⏻ turns AntiGem off (the bridge and every agent stop);
+connection shows its ports and log, and restarts it. The drawer's ⏻ turns LytsoCoder off (the bridge and every agent stop);
 Reconnect starts it again. jarvis_get_health says what is up.
 `.trim(),
   },

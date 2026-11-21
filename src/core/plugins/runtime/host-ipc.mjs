@@ -1,10 +1,10 @@
-// AntiGem for VS Code: runs the app's plugin runtime (extension-host.mjs, unchanged) as a child process of the
+// LytsoCoder for VS Code: runs the app's plugin runtime (extension-host.mjs, unchanged) as a child process of the
 // extension host, controlled over the Node IPC channel instead of the app's HTTP management endpoints.
 //   fork(host-ipc.mjs, { execArgv: ['--experimental-vm-modules'], env: { ANTIGEM_PLUGIN_HOST: JSON config } })
 // Parent → child: {kind:'call', id, op, args}            → child answers {kind:'ret', id, result | error}
 // Child → parent: {kind:'ask', id, op, payload}           → parent answers {kind:'answer', id, result | error}
 //   op 'browser' {endpoint, body, method}: the app's /api/browser/<endpoint> contract, served by the parent's browser
-//   provider (the AntiGem Chrome extension); 'cdp.open' {tab_id} → session id, 'cdp.send' {session, method, params},
+//   provider (the LytsoCoder Chrome extension); 'cdp.open' {tab_id} → session id, 'cdp.send' {session, method, params},
 //   'cdp.close' {session}. The parent pushes {kind:'cdp.event', session, method, params} and {kind:'cdp.closed', session}.
 import { EventEmitter } from 'node:events';
 import { randomBytes } from 'node:crypto';
@@ -27,7 +27,7 @@ const asks = new Map();
 let seq = 0;
 function ask(op, payload, timeout = 200_000) {
   return new Promise((resolve, reject) => {
-    if (!process.connected) return reject(new Error('AntiGem is not connected'));
+    if (!process.connected) return reject(new Error('LytsoCoder is not connected'));
     const id = ++seq;
     const timer = setTimeout(() => {
       asks.delete(id);

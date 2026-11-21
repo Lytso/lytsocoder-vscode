@@ -1,4 +1,4 @@
-// Custom AntiGem plugins (the app's BrowserExtension): what the bridge's /api/custom-plugins lists, and the hooks the
+// Custom LytsoCoder plugins (the app's BrowserExtension): what the bridge's /api/custom-plugins lists, and the hooks the
 // host gives the plugin feature (settings pages, `/plu:` items and expansion).
 import type { HostToView, SettingItem, SettingsPage, SlashCommandView } from '../../../shared/protocol';
 
@@ -90,7 +90,7 @@ export interface PluginHooks {
   slashItems(): SlashCommandView[];
   /** The note `/plu:<id>[:<skill>]` expands to (null = no such enabled plugin). */
   guide(pluginId: string, skill: string | null): string | null;
-  /** Settings → Custom AntiGem Plugins (pages 'plugins' and 'plugins.*'). */
+  /** Settings → Custom LytsoCoder Plugins (pages 'plugins' and 'plugins.*'). */
   readonly settings: {
     rootItem(): SettingItem;
     page(id: string): Promise<SettingsPage>;

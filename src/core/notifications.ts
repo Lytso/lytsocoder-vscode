@@ -1,4 +1,4 @@
-// "Your chat needs you": follows the chats the user sends from AntiGem and tells them when one finishes, stops with an
+// "Your chat needs you": follows the chats the user sends from LytsoCoder and tells them when one finishes, stops with an
 // error, asks for a permission or asks a question — unless they are looking at that chat. Agent-neutral: it only reads
 // the ChatState every backend gives (isStreaming, approvals, question, queued, messages).
 import type { AgentKind } from '../../shared/model';
@@ -25,7 +25,7 @@ export interface NotifyPrefs {
   system: boolean;
   /** A VS Code pop-up when VS Code is focused but the chat is not on screen. */
   inApp: boolean;
-  /** The count on the AntiGem icon (chats that need a look). */
+  /** The count on the LytsoCoder icon (chats that need a look). */
   badge: boolean;
 }
 
@@ -143,7 +143,7 @@ export class ChatNotifier {
       kind: 'done',
       conversationId: '',
       agent: 'CLAUDE',
-      title: 'AntiGem notifications work',
+      title: 'LytsoCoder notifications work',
       body: 'This is how a finished chat is announced.',
     };
     if (p.system && this.d.system && (await this.d.system(alert))) return 'Sent a system notification';

@@ -67,7 +67,7 @@ export interface Platform {
   bridgeInfo(): { port: number; hubPort: number; logFile: string };
   /** Folder chooser (absolute path, or null when cancelled). */
   pickFolder(): Promise<string | null>;
-  /** The bridge's saved project list (shared with the AntiGem app). */
+  /** The bridge's saved project list (shared with the LytsoCoder app). */
   savedProjects(): Promise<{ name: string; path: string }[]>;
   saveProject(path: string): Promise<void>;
   forgetProject(path: string): Promise<void>;
@@ -91,7 +91,7 @@ export interface Platform {
   systemAlert?(alert: ChatAlert): Promise<boolean>;
   /** Why desktop notifications cannot be shown here (null = they can; absent = never). */
   systemAlertUnavailable?(): string | null;
-  /** The count on the AntiGem icon (0 = none). */
+  /** The count on the LytsoCoder icon (0 = none). */
   setBadge?(count: number, tooltip: string): void;
 }
 
@@ -217,7 +217,7 @@ export class AppHost {
     if (this.platform.isOff()) {
       this.platform.powerOn();
       this.broadcast({ type: 'agents', agents: this.agentStatuses() });
-      this.broadcast({ type: 'toast', level: 'info', message: 'Starting AntiGem…' });
+      this.broadcast({ type: 'toast', level: 'info', message: 'Starting LytsoCoder…' });
     }
     for (const b of this.active()) b.retry();
   }
@@ -283,7 +283,7 @@ export class AppHost {
 
   private jarvis: JarvisHooks | null = null;
 
-  // ------------------------------------------------------------------ AntiGem browser extension (src/core/browser)
+  // ------------------------------------------------------------------ LytsoCoder browser extension (src/core/browser)
 
   private browser: BrowserHooks | null = null;
 
@@ -291,7 +291,7 @@ export class AppHost {
 
   private phone: PhoneAccess | null = null;
 
-  /** Settings → Connect phone (page 'phone'): the AntiGem app on a phone uses this PC's agents. */
+  /** Settings → Connect phone (page 'phone'): the LytsoCoder app on a phone uses this PC's agents. */
   attachPhone(p: PhoneAccess) {
     this.phone = p;
     p.onChange(() => {
@@ -307,11 +307,11 @@ export class AppHost {
     });
   }
 
-  // ------------------------------------------------------------------ custom AntiGem plugins (src/core/plugins)
+  // ------------------------------------------------------------------ custom LytsoCoder plugins (src/core/plugins)
 
   private plugins: PluginHooks | null = null;
 
-  /** Custom plugins: `/plu:` items and expansion, Settings → Custom AntiGem Plugins. */
+  /** Custom plugins: `/plu:` items and expansion, Settings → Custom LytsoCoder Plugins. */
   attachPlugins(p: PluginHooks) {
     this.plugins = p;
     this.settings.pluginGuide = (id, skill) => p.guide(id, skill);
@@ -622,7 +622,7 @@ export class AppHost {
     const opts = [
       { value: 'antigravity-ide', label: 'Antigravity IDE', what: '~/.gemini/antigravity-ide' },
       { value: 'antigravity', label: 'Antigravity app', what: '~/.gemini/antigravity' },
-      { value: 'antigravity-cli', label: 'agy CLI (as the AntiGem app)', what: '~/.gemini/antigravity-cli' },
+      { value: 'antigravity-cli', label: 'agy CLI (as the LytsoCoder app)', what: '~/.gemini/antigravity-cli' },
     ];
     return {
       id: 'agy-history',
@@ -699,7 +699,7 @@ export class AppHost {
 
   /** Why an agent's settings page can't load (its status), or null when it looks fine. */
   private offlineReason(page: string): string | null {
-    if (this.platform.isOff()) return 'AntiGem is turned off — press Reconnect to start it.';
+    if (this.platform.isOff()) return 'LytsoCoder is turned off — press Reconnect to start it.';
     const b = this.backendForPage(page, '');
     if (!b) return null;
     const st = b.status();
@@ -769,7 +769,7 @@ export class AppHost {
     return all.map((k) =>
       this.backends[k] && this.isEnabled(k)
         ? off
-          ? { ...this.backends[k]!.status(), state: 'offline' as const, detail: 'AntiGem is turned off' }
+          ? { ...this.backends[k]!.status(), state: 'offline' as const, detail: 'LytsoCoder is turned off' }
           : this.backends[k]!.status()
         : { kind: k, label: labels[k], state: 'disabled' as const, detail: this.backends[k] ? 'Turned off in Settings → Agents' : 'Not available yet' },
     );
@@ -1237,7 +1237,7 @@ export class AppHost {
         this.reconnect();
         return;
       case 'restartBridge': {
-        if (!(await this.platform.confirm('Restart the AntiGem bridge? Its agents and the Antigravity hub stop and start again; running chats stop in every VS Code window.', 'Restart')))
+        if (!(await this.platform.confirm('Restart the LytsoCoder bridge? Its agents and the Antigravity hub stop and start again; running chats stop in every VS Code window.', 'Restart')))
           return;
         this.toast(v, 'info', 'Restarting the bridge…');
         try {
@@ -1253,14 +1253,14 @@ export class AppHost {
       case 'powerOff': {
         if (
           !(await this.platform.confirm(
-            'Stop AntiGem? The bridge, every agent and the Antigravity hub stop (running chats stop) in every VS Code window. Press ▶ in the side bar to start them again.',
+            'Stop LytsoCoder? The bridge, every agent and the Antigravity hub stop (running chats stop) in every VS Code window. Press ▶ in the side bar to start them again.',
             'Stop',
           ))
         )
           return;
         await this.platform.powerOff();
         this.broadcast({ type: 'agents', agents: this.agentStatuses() });
-        this.broadcast({ type: 'toast', level: 'info', message: 'AntiGem stopped — press ▶ in the side bar to start it' });
+        this.broadcast({ type: 'toast', level: 'info', message: 'LytsoCoder stopped — press ▶ in the side bar to start it' });
         return;
       }
       case 'toolAction':

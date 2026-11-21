@@ -25,7 +25,7 @@ export const REPO = 'google/elephant-goldfish-model';
 export const HOMEPAGE = `https://github.com/${REPO}`;
 const LATEST_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
 const MAIN_COMMIT_URL = `https://api.github.com/repos/${REPO}/commits/main`;
-/** EGM's runtime ZIP (skills, personas, standards, docs) without a host's plugin folder that AntiGem does not use. */
+/** EGM's runtime ZIP (skills, personas, standards, docs) without a host's plugin folder that LytsoCoder does not use. */
 const ASSET_PREFIX = 'egm-openai-';
 /**
  * What a download must hold to be EGM (the skills read the personas and standards while they run). Not egm-lite:
@@ -104,7 +104,7 @@ export const DEFAULT_JARVIS_TEMPLATE = `How to manage this EGM run:
 4. Approval: when the planner says Waiting for approval, give the user the design document's path, what changed in review and what is still open, and ask: approve, change something, or one more review round (in a typed chat ask in your reply; by voice with jarvis_ask). Pass the answer on: APPROVED, or the user's changes word for word. Never let implementation start without the user's explicit approval.
 5. End: when the planner reports Done, mark the mission done and tell the user where the design, the reports and the changes are.`;
 
-const GOLDFISH_RULES = `# EGM Goldfish reviewer (AntiGem)
+const GOLDFISH_RULES = `# EGM Goldfish reviewer (LytsoCoder)
 
 You are a Goldfish: a fresh reviewer in the Elephant-Goldfish Model (EGM). You know nothing about the conversation that produced the document, and that is the point.
 
@@ -176,7 +176,7 @@ interface Installed {
 export class EgmManager {
   /** EGM's own files, exactly as released. */
   readonly rootDir: string;
-  /** AntiGem's rules for the planner and the reviewers of a Jarvis run (rewritten from the settings). */
+  /** LytsoCoder's rules for the planner and the reviewers of a Jarvis run (rewritten from the settings). */
   readonly adapterDir: string;
   private readonly workDir: string;
   state: EgmState = {
@@ -552,10 +552,10 @@ export class EgmManager {
     const root = this.rootDir;
     const version = this.label ? ` ${this.label}` : '';
     const lines = [
-      `EGM (Elephant-Goldfish Model${version}, ${HOMEPAGE}) is installed by AntiGem. It makes you plan and defend a design before any code: the Elephant (the main agent, with the whole context) writes a design document, and fresh Goldfish reviewers that know nothing of the conversation try to break it.`,
+      `EGM (Elephant-Goldfish Model${version}, ${HOMEPAGE}) is installed by LytsoCoder. It makes you plan and defend a design before any code: the Elephant (the main agent, with the whole context) writes a design document, and fresh Goldfish reviewers that know nothing of the conversation try to break it.`,
       `- EGM root: ${root} (skills/<name>/SKILL.md = the workflows, agents/<file>.md = the Goldfish reviewer personas, resources/document_standards/ = the review standards, docs/ = notes per agent).`,
       '- EGM is not installed as a plugin of your agent here: its skills are not in your skill list and its personas are not registered subagent types. Read the files and follow them; never call a Skill tool for them. Where an EGM file says ${CLAUDE_PLUGIN_ROOT}, "the plugin root" or a path like agents/…, resources/… or docs/…, use the EGM root. A skill\'s references/ folder is next to its SKILL.md.',
-      '- If the EGM root does not exist where you run (an agent on another computer or a server), stop and tell the user that EGM is installed only on the PC that runs AntiGem.',
+      '- If the EGM root does not exist where you run (an agent on another computer or a server), stop and tell the user that EGM is installed only on the PC that runs LytsoCoder.',
       `- EGM artifact directory: ${s.artifactDir}/<short-topic-name>/ in the project folder (one folder per topic; create it). Drafts, checklists and every review report are files there, not long text in the chat.`,
     ];
     const chosen = PERSONAS.filter((p) => s.reviewers.includes(p.id));
@@ -645,9 +645,9 @@ export class EgmManager {
 
   private plannerRules(s: EgmSettings): string {
     const root = this.rootDir;
-    return `# EGM in AntiGem: the Elephant (planner) of a run that Jarvis manages
+    return `# EGM in LytsoCoder: the Elephant (planner) of a run that Jarvis manages
 
-Written by AntiGem from Settings → Agents → EGM and rewritten when those settings change.
+Written by LytsoCoder from Settings → Agents → EGM and rewritten when those settings change.
 
 ${this.setupBlock(s)}
 

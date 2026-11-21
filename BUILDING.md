@@ -1,4 +1,4 @@
-# Building AntiGem for VS Code
+# Building LytsoCoder for VS Code
 
 This document is for reviewers and contributors. It explains how the native Go bridge binary is produced and how the per-platform VSIX packages are built.
 
@@ -10,7 +10,7 @@ For what the extension runs, which ports, files and network it uses, and where e
 - `bin/antigem-bridge-<platform>-<arch>[.exe]` — the Go bridge (one file per target platform).
 - `bridge/` source, `src/`, `shared/`, `webview/src/` — included for transparency.
 
-The bridge is a fork of the AntiGem app's IDE bridge. It is a single static Go binary (`CGO_ENABLED=0`), binds only to `127.0.0.1`, and uses a CSRF token file under `~/.antigem_bridge/`. It never modifies the agy binary (started with `--no-agy-patch`).
+The bridge is a fork of the LytsoCoder app's IDE bridge. It is a single static Go binary (`CGO_ENABLED=0`), binds only to `127.0.0.1`, and uses a CSRF token file under `~/.antigem_bridge/`. It never modifies the agy binary (started with `--no-agy-patch`).
 
 ## Supported targets (64-bit only)
 
@@ -111,7 +111,7 @@ Caveats:
 - Recommended only for local/personal builds, not for Marketplace publishing. Shipped binaries in this repo's
   releases are **not** UPX-compressed.
 
-## The AntiGem Chrome extension
+## The LytsoCoder Chrome extension
 
 Plain MV3 files, no build step. It is **its own repository**, checked out next to this one as
 `../antigem-chrome-extension` (or set `ANTIGEM_CHROME_EXTENSION=<folder>`). `npm run build:host` (`esbuild.mjs`) copies
@@ -143,8 +143,8 @@ google-chrome --pack-extension="$PWD/../antigem-chrome-extension" --pack-extensi
 
 ## Related projects
 
-- This extension is the VS Code port of the **AntiGem Android app**: https://github.com/santoshkurmi/antigem
-- Extension repository: https://github.com/santoshkurmi/antigem_vscode_extension
+- This extension is the VS Code port of the **LytsoCoder Android app**: https://github.com/Lytso/LytsoCoder
+- Extension repository: https://github.com/Lytso/LytsoCoder_vscode_extension
 
 Both share the same Go bridge protocol, chat UI and agent backends (agy, Claude Code, Codex, OpenCode); this project
 just hosts them inside VS Code instead of on a phone.
@@ -154,5 +154,5 @@ just hosts them inside VS Code instead of on a phone.
 - The bridge listens on `127.0.0.1` only (configurable port, default 1244).
 - All requests require a CSRF token from `~/.antigem_bridge/csrf_token.txt`.
 - The agy hub is started with its standard `x-codeium-csrf-token` header; the agy binary is never patched (`--no-agy-patch`).
-- Every AntiGem binary ships inside the VSIX. The only code downloaded at runtime is what the user asks for: official agent CLI installers (Install / Update buttons) and plugins the user installs.
+- Every LytsoCoder binary ships inside the VSIX. The only code downloaded at runtime is what the user asks for: official agent CLI installers (Install / Update buttons) and plugins the user installs.
 - Source code is included in the package for verification.

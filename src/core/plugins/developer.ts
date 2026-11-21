@@ -1,4 +1,4 @@
-// Custom AntiGem Plugin Developer MCP at /extension_developer (port of the app's WebViewExtensionDeveloper.kt): the
+// Custom LytsoCoder Plugin Developer MCP at /extension_developer (port of the app's WebViewExtensionDeveloper.kt): the
 // bundled SDK docs, drafts in ~/extension-projects (files written, read and packaged by the bridge), install / update
 // with rollback, enable, reload, rename, test and worker logs through the plugin service. The 12 tools and their
 // schemas are the app's developer-tools.json, unchanged.
@@ -178,7 +178,7 @@ export function developerMcp(service: PluginService): McpServerDef {
           break;
         }
         case RUNTIME_TOOL: {
-          // another AntiGem window asks this one (it runs the workers) to make a change
+          // another LytsoCoder window asks this one (it runs the workers) to make a change
           const r = await service.local(str(args.op), (args.args as Record<string, unknown>) ?? {});
           return response(r ?? null);
         }

@@ -169,7 +169,7 @@ export function chooseFirstAgents(agents: AgentKind[]) {
 
 /** The VS Code editor's active file / selection (the composer's offer chip). */
 export const [editorContext, setEditorContext] = createSignal<EditorContextView | null>(null);
-/** Chips pushed by the host (VS Code "Add to AntiGem Chat" commands); the composer takes them. */
+/** Chips pushed by the host (VS Code "Add to LytsoCoder Chat" commands); the composer takes them. */
 export const [incomingAttachments, setIncomingAttachments] = createSignal<{ list: ChatAttachment[]; n: number } | null>(null);
 /** Bumped when the host asks for the cursor in the composer. */
 export const [focusTick, setFocusTick] = createSignal(0);

@@ -61,7 +61,7 @@ const HIDDEN_COMMANDS = new Set(['color', 'focus', 'heapdump', '__remote-workflo
 const SLOW = 90_000;
 
 /** The context card's category colors (free space stays an empty track). */
-const CONTEXT_COLORS = ['#D97757', '#6A9BCC', '#9C87D9', '#5BB98C', '#D9A84E', '#C96F9E', '#5FB3C2', '#8A8F98'];
+const CONTEXT_COLORS = ['#00E5FF', '#6A9BCC', '#9C87D9', '#5BB98C', '#D9A84E', '#C96F9E', '#5FB3C2', '#8A8F98'];
 
 /** "just now", "3 min ago", "2 h ago". */
 function relativeAgo(ms: number): string {

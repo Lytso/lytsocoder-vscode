@@ -55,11 +55,11 @@ const evalJs = async (script: string, tab_id?: string) => (await tool('browser_e
 
 // ------------------------------------------------------------------------------------------------ test site
 
-const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>AntiGem Test Page</title>
+const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>LytsoCoder Test Page</title>
 <style>body{font:16px sans-serif;margin:20px} button,input,select{margin:4px}</style></head><body>
 <main>
 <h1>Browser MCP test</h1>
-<p id="intro">This is the AntiGem browser test page. It has a form, page dialogs, uploads, a drop area, a new-tab link and
+<p id="intro">This is the LytsoCoder browser test page. It has a form, page dialogs, uploads, a drop area, a new-tab link and
 a long scroll area, so that every browser tool can be checked against something real. The quick brown fox jumps over the lazy dog.</p>
 <form id="f" onsubmit="event.preventDefault(); document.getElementById('out').textContent = 'submitted:' + document.getElementById('name').value;">
  <label>Name <input id="name" name="name" placeholder="Your name"></label>
@@ -235,24 +235,24 @@ async function main() {
 
     // ---------------------------------------------------------------- open, list, read
     let r = await tool('browser_list_tabs');
-    rec('browser_list_tabs', 'no AntiGem tabs yet; other tabs hidden', !r.isError && r.text.startsWith('[]') && /other tab/.test(r.text), r.text);
+    rec('browser_list_tabs', 'no LytsoCoder tabs yet; other tabs hidden', !r.isError && r.text.startsWith('[]') && /other tab/.test(r.text), r.text);
 
     r = await tool('browser_open_url', { url: `${base}/`, action_summary: 'Opening the test page' });
     const tabId = /Tab (\d+): loaded/.exec(r.text)?.[1] ?? '';
-    rec('browser_open_url', 'opens a new tab in the AntiGem group and waits', !r.isError && !!tabId && /AntiGem Test Page/.test(r.text), r.text);
+    rec('browser_open_url', 'opens a new tab in the LytsoCoder group and waits', !r.isError && !!tabId && /LytsoCoder Test Page/.test(r.text), r.text);
     const groups = await cdp.evaluate(
       (await cdp.session(sw.targetId)) as string,
       `(async () => (await chrome.tabGroups.query({})).map(g => g.title + ':' + g.color))()`,
     ).catch(() => null);
-    rec('(policy)', 'tab group "AntiGem" created', JSON.stringify(groups ?? '').includes('AntiGem'), JSON.stringify(groups));
+    rec('(policy)', 'tab group "LytsoCoder" created', JSON.stringify(groups ?? '').includes('LytsoCoder'), JSON.stringify(groups));
 
     r = await tool('browser_list_tabs');
-    rec('browser_list_tabs', 'lists the AntiGem tab', !r.isError && r.text.includes(`"id": "${tabId}"`) && r.text.includes('"isActive": true'), r.text.slice(0, 200));
+    rec('browser_list_tabs', 'lists the LytsoCoder tab', !r.isError && r.text.includes(`"id": "${tabId}"`) && r.text.includes('"isActive": true'), r.text.slice(0, 200));
 
     r = await tool('browser_read_page', { filter: 'interactive' });
     rec('browser_read_page', 'interactive tree with refs', !r.isError && /textbox "Name" \[ref_\d+\]/.test(r.text) && /button "Send form"/.test(r.text), r.text.slice(0, 200));
     r = await tool('browser_read_page', {});
-    rec('browser_read_page', 'full tree', !r.isError && /heading "Browser MCP test"/.test(r.text) && r.text.includes('Page: AntiGem Test Page'), r.text.slice(0, 160));
+    rec('browser_read_page', 'full tree', !r.isError && /heading "Browser MCP test"/.test(r.text) && r.text.includes('Page: LytsoCoder Test Page'), r.text.slice(0, 160));
 
     r = await tool('browser_find', { query: 'name field' });
     const nameRef = /- (ref_\d+): textbox "Name"/.exec(r.text)?.[1] ?? '';
@@ -452,7 +452,7 @@ async function main() {
     r = await tool('browser_computer', { action: 'left_click', ref: navRef });
     rec('browser_computer', 'navigation reported by settle', /The page changed to .*page2.html — "Page 2"/.test(r.text), r.text);
     r = await tool('browser_open_url', { url: 'back' });
-    rec('browser_open_url', 'back', !r.isError && /AntiGem Test Page/.test(r.text), r.text.split('\n')[0]);
+    rec('browser_open_url', 'back', !r.isError && /LytsoCoder Test Page/.test(r.text), r.text.split('\n')[0]);
     r = await tool('browser_open_url', { url: 'forward' });
     rec('browser_open_url', 'forward', !r.isError && /Page 2/.test(r.text), r.text.split('\n')[0]);
     r = await tool('browser_open_url', { url: 'reload' });
@@ -480,7 +480,7 @@ async function main() {
         { name: 'javascript_tool', input: { script: 'document.title' } },
       ],
     });
-    rec('browser_batch', '3 steps incl. aliases + image', !r.isError && /\[1\/3\] browser_find/.test(r.text) && /\[3\/3\] browser_eval_js: AntiGem Test Page/.test(r.text) && r.images.length === 1, r.text.replace(/\n/g, ' | ').slice(0, 200));
+    rec('browser_batch', '3 steps incl. aliases + image', !r.isError && /\[1\/3\] browser_find/.test(r.text) && /\[3\/3\] browser_eval_js: LytsoCoder Test Page/.test(r.text) && r.images.length === 1, r.text.replace(/\n/g, ' | ').slice(0, 200));
     r = await tool('browser_batch', { actions: [{ name: 'computer', input: { action: 'nope' } }, { name: 'find', input: { query: 'x' } }] });
     rec('browser_batch', 'stops at the first error', r.isError && /Batch stopped at step 1 of 2/.test(r.text), r.text.replace(/\n/g, ' | '));
 
@@ -577,7 +577,7 @@ async function main() {
     const askTitle = await answerConfirm(cdp, false);
     await sleep(500);
     list = (await (async () => { const s2 = await cdp.session(sw.targetId); return cdp.evaluate(s2, `(async () => (await chrome.storage.local.get('blocklist')).blocklist.length)()`); })()) as string;
-    rec('(settings)', 'blocklist removal from VS Code needs the browser OK (denied -> kept)', askTitle === 'Remove sites from the AntiGem blocklist?' && Number(list) > 30, `${askTitle} | ${list} entries`);
+    rec('(settings)', 'blocklist removal from VS Code needs the browser OK (denied -> kept)', askTitle === 'Remove sites from the LytsoCoder blocklist?' && Number(list) > 30, `${askTitle} | ${list} entries`);
     view.close();
 
     // ---------------------------------------------------------------- a real site

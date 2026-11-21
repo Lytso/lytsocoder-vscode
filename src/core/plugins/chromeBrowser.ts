@@ -1,4 +1,4 @@
-// The plugins' browser on PC: the user's Chrome through the AntiGem Chrome extension (Phase 4's BrowserBridge, typed
+// The plugins' browser on PC: the user's Chrome through the LytsoCoder Chrome extension (Phase 4's BrowserBridge, typed
 // structurally here so this file does not depend on its internals). The runtime's /api/browser/* contract maps onto
 // the extension's commands: tabs.list / tabs.open / tabs.activate / tabs.close, page.eval (page scripts), cdp (input
 // events only), screenshot, upload, lock.set and agent.begin / agent.end. The extension allows no raw DevTools
@@ -17,8 +17,8 @@ export interface BrowserLink {
 }
 
 const NOT_CONNECTED =
-  'The AntiGem Chrome extension is not connected. Install and connect it (Settings → Browser), then keep Chrome open, to let plugins use browser tabs.';
-const LIMITED = 'is not available through the AntiGem Chrome extension (plugins get page scripts, input events, reload and screenshots)';
+  'The LytsoCoder Chrome extension is not connected. Install and connect it (Settings → Browser), then keep Chrome open, to let plugins use browser tabs.';
+const LIMITED = 'is not available through the LytsoCoder Chrome extension (plugins get page scripts, input events, reload and screenshots)';
 const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4', pdf: 'application/pdf', txt: 'text/plain' };
 
 interface ExtTab {
@@ -228,5 +228,5 @@ class LimitedSession implements CdpSession {
   }
 }
 
-/** The plugins' browser backed by the AntiGem Chrome extension link. */
+/** The plugins' browser backed by the LytsoCoder Chrome extension link. */
 export const chromeExtensionBrowser = (link: BrowserLink): BrowserProvider => new ChromeExtensionBrowser(link);

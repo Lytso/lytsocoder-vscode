@@ -224,7 +224,7 @@ export function InputBar() {
     }),
   );
 
-  // VS Code commands: "Add to AntiGem Chat" / "Add Selection" (chips), the focus shortcut
+  // VS Code commands: "Add to LytsoCoder Chat" / "Add Selection" (chips), the focus shortcut
   createEffect(
     on(incomingAttachments, (inc) => {
       if (!inc) return;
@@ -799,7 +799,7 @@ function QueuedCard() {
 // ------------------------------------------------------------------------------------------------ popups
 
 const GROUPS: Record<string, { title: string; icon: IconName; color: string }> = {
-  plugin: { title: 'Custom AntiGem plugins', icon: 'extension', color: 'var(--agy)' },
+  plugin: { title: 'Custom LytsoCoder plugins', icon: 'extension', color: 'var(--agy)' },
   custom: { title: 'Custom commands', icon: 'auto_awesome', color: 'var(--primary)' },
   app: { title: 'Opens in the app', icon: 'open_in_new', color: 'var(--agy)' },
   command: { title: 'Commands', icon: 'terminal_o', color: 'var(--primary)' },

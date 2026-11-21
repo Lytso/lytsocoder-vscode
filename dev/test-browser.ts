@@ -1,4 +1,4 @@
-// Offline tests of the AntiGem browser link (no browser): the Go native host's framing between a fake Chrome
+// Offline tests of the LytsoCoder browser link (no browser): the Go native host's framing between a fake Chrome
 // (stdin/stdout) and the real BrowserBridge socket, socket permissions and takeover, the native host registration
 // helper, key parsing, browser_mcp over HTTP (schemas, not-connected errors) and tool -> command routing against a
 // fake extension. Everything is written under a temp folder.
@@ -315,7 +315,7 @@ async function testMcp() {
     return (await res.json()) as any;
   };
   const init = await rpc('initialize');
-  check('initialize: browser_mcp + instructions', init.result?.serverInfo?.name === 'browser_mcp' && /AntiGem/.test(init.result?.instructions ?? ''));
+  check('initialize: browser_mcp + instructions', init.result?.serverInfo?.name === 'browser_mcp' && /LytsoCoder/.test(init.result?.instructions ?? ''));
   const list = await rpc('tools/list');
   const names = (list.result?.tools ?? []).map((t: any) => t.name);
   check('the app\'s 16 tools + browser_batch listed', names.length === 17 && names.includes('browser_batch') && names.includes('browser_upload_file'), names.join(','));

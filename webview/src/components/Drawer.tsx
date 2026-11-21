@@ -211,7 +211,7 @@ export function Drawer(props: { open: boolean; onClose: () => void; onNotes?: ()
       <aside class="drawer" classList={{ open: props.open }} aria-hidden={!props.open}>
         <div class="drawer-inner">
           <div class="drawer-header">
-            <span class="wordmark">AntiGem</span>
+            <span class="wordmark">LytsoCoder</span>
             <HeaderIcon
               icon="search"
               title="Search"
@@ -238,7 +238,7 @@ export function Drawer(props: { open: boolean; onClose: () => void; onNotes?: ()
             {/* ■ stops the bridge, its agents and the hub (the host asks first; they stay off in every window); ▶ starts them */}
             <HeaderIcon
               icon={stopped() ? 'play' : 'stop'}
-              title={stopped() ? 'Start AntiGem (bridge and agents)' : 'Stop AntiGem (bridge, agents and hub)'}
+              title={stopped() ? 'Start LytsoCoder (bridge and agents)' : 'Stop LytsoCoder (bridge, agents and hub)'}
               active={stopped()}
               onClick={() => send(stopped() ? { type: 'retryConnections' } : { type: 'powerOff' })}
             />
@@ -526,8 +526,8 @@ export function Drawer(props: { open: boolean; onClose: () => void; onNotes?: ()
   );
 }
 
-/** The user stopped AntiGem (the host marks every enabled agent "AntiGem is turned off"). */
-const stopped = () => state.agents.some((a) => a.detail === 'AntiGem is turned off');
+/** The user stopped LytsoCoder (the host marks every enabled agent "LytsoCoder is turned off"). */
+const stopped = () => state.agents.some((a) => a.detail === 'LytsoCoder is turned off');
 
 function HeaderIcon(props: { icon: 'search' | 'folder' | 'folder_open' | 'archive' | 'stop' | 'play'; title: string; active: boolean; onClick: () => void }) {
   return (

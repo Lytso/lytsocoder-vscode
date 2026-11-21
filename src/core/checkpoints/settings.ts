@@ -69,7 +69,7 @@ export class CheckpointSettingsPages {
         id: 'mode',
         title: 'Checkpoints',
         description:
-          'Before every message you send (Claude Code, Codex, OpenCode or Antigravity), AntiGem saves a hidden copy of the project\'s files. ' +
+          'Before every message you send (Claude Code, Codex, OpenCode or Antigravity), LytsoCoder saves a hidden copy of the project\'s files. ' +
           'Each message then gets a restore point: go back to before it, with a preview of every file that changes. Your own git history, ' +
           'branches, staging and stashes are never touched.',
         items: [

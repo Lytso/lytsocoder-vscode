@@ -1,9 +1,9 @@
 // The guide agents read for the STEM blocks (port of the app's assets/render/GUIDE.md: same sections and examples, for
-// this chat: KaTeX's mhchem instead of the app's own \ce renderer, the Mermaid AntiGem bundles, mouse instead of touch).
+// this chat: KaTeX's mhchem instead of the app's own \ce renderer, the Mermaid LytsoCoder bundles, mouse instead of touch).
 // RenderBundle writes it next to the bundle ({{BUNDLE_DIR}}) and the settings page shows it with the chat's renderer.
-export const GUIDE_TEMPLATE = `# AntiGem STEM & diagram blocks (bundle render-v1)
+export const GUIDE_TEMPLATE = `# LytsoCoder STEM & diagram blocks (bundle render-v1)
 
-How AntiGem's chat draws these blocks. Each one is a fenced code block with the language name shown; anything the app can't draw stays visible as code, so a mistake never hides content. Pick the simplest block that does the job.
+How LytsoCoder's chat draws these blocks. Each one is a fenced code block with the language name shown; anything the app can't draw stays visible as code, so a mistake never hides content. Pick the simplest block that does the job.
 
 | Block | Library (exact version) | Best for |
 |---|---|---|
@@ -232,7 +232,7 @@ If it doesn't compile, the block shows the end of the TeX log: fix the reported 
 
 ## 7. Mermaid: \`\`\`\` \`\`\`mermaid \`\`\`\`
 
-Mermaid {{MERMAID_VERSION}} syntax, always this exact version (flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, gantt, pie, quadrantChart, mindmap, timeline, gitGraph, sankey-beta, xychart-beta, block-beta, architecture-beta, packet-beta, kanban, radar-beta, treemap-beta). It is built into AntiGem and works offline.
+Mermaid {{MERMAID_VERSION}} syntax, always this exact version (flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, gantt, pie, quadrantChart, mindmap, timeline, gitGraph, sankey-beta, xychart-beta, block-beta, architecture-beta, packet-beta, kanban, radar-beta, treemap-beta). It is built into LytsoCoder and works offline.
 
 ---
 

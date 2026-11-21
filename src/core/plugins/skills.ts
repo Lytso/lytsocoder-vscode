@@ -169,7 +169,7 @@ export function callSkillTool(dir: string, tool: string, args: Record<string, un
 export function skillInstructions(name: string, skills: SkillInfo[]): string | undefined {
   if (!skills.length) return undefined;
   return [
-    `This server is the custom AntiGem plugin "${name}". It includes skills: guides for doing tasks with its tools.`,
+    `This server is the custom LytsoCoder plugin "${name}". It includes skills: guides for doing tasks with its tools.`,
     'Before using its other tools for a task, find the matching skill below and read it with get_skill. Open detail files with get_skill_file only when the skill refers to them.',
     'Skills:',
     ...skills.slice(0, 60).map((s) => `- ${s.name}${s.description ? `: ${s.description}` : ''}`),

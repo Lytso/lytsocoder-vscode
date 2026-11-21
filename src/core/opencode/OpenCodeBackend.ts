@@ -53,7 +53,7 @@ const STALL_NOTICE_MS = 20_000;
 const STALL_MS = 90_000;
 const ALIAS_LIMIT = 300;
 /** The context card's colors (free space stays an empty track). */
-const CONTEXT_COLORS = ['#6A9BCC', '#5BB98C', '#D97757'];
+const CONTEXT_COLORS = ['#6A9BCC', '#5BB98C', '#00E5FF'];
 
 /** ChatState plus the optional fields the host forwards when it knows them (notice line, the chat's own model). */
 export type OpenCodeChatState = ChatState & { notice?: string | null; modelId?: string | null };

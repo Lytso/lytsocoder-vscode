@@ -320,7 +320,7 @@ export type SettingItem =
       display?: 'rows' | 'tiles' | 'search' | null;
       /** display 'search': the sheet's title ("Connect a provider"). */
       searchTitle?: string | null;
-      /** Tiles / the search button: accent token or hex ('opencode', '#D97757'…). */
+      /** Tiles / the search button: accent token or hex ('opencode', '#00E5FF'…). */
       accent?: string | null;
       /** Tiles: Material icon name. */
       icon?: string | null;
@@ -386,7 +386,7 @@ export type SettingItem =
         subtitle: string;
         /** Material icon name (extension, developer_mode, language, edit_note, record_voice_over, palette, add…). */
         icon: string;
-        /** Accent token or hex ('primary', 'info', 'warning', '#D97757'…). */
+        /** Accent token or hex ('primary', 'info', 'warning', '#00E5FF'…). */
         accent?: string | null;
         added?: boolean;
         disabled?: boolean;

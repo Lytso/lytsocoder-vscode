@@ -182,7 +182,7 @@ export interface JarvisHostApi {
   openFile(path: string, line?: number): void;
   openUrl(url: string): void;
   searchFiles(query: string): Promise<FileSuggestion[]>;
-  /** AntiGem is turned off (drawer ⏻). */
+  /** LytsoCoder is turned off (drawer ⏻). */
   isOff(): boolean;
 }
 

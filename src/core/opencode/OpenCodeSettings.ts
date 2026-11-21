@@ -517,7 +517,7 @@ export class OpenCodeSettings implements AgentSettingsProvider {
           agent: 'OPENCODE',
           items: [
             this.modelsItem(),
-            { kind: 'info', id: 'about', label: 'Kept by AntiGem', value: 'OpenCode itself still has the models you turn off here.', tone: 'muted' },
+            { kind: 'info', id: 'about', label: 'Kept by LytsoCoder', value: 'OpenCode itself still has the models you turn off here.', tone: 'muted' },
           ],
         },
       ],

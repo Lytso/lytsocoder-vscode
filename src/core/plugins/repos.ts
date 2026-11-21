@@ -9,7 +9,7 @@ export const REPO_INDEX = 'antigem-plugins.json';
 
 const DEFAULT_REPOS: [string, string][] = [
   ['dipeshkrydv/antigem_plugins', 'default_repo_added'],
-  ['Santoshkurmi/antigem_plugins', 'default_repo_added_santoshkurmi'],
+  ['Lytso/lytsocoder-plugins', 'default_repo_added_itslytso'],
 ];
 const NAME = '[A-Za-z0-9_.-]+';
 

@@ -1,9 +1,9 @@
 {
-  "name": "antigem-vscode-extension",
-  "displayName": "AntiGem VSCode Extension",
-  "description": "One chat UI for Antigravity (agy), Claude Code, Codex and OpenCode \u2014 the AntiGem app (VS Code port of the AntiGem Android app: https://github.com/santoshkurmi/antigem), inside VS Code.",
-  "publisher": "santoshkurmi",
-  "version": "0.2.0",
+  "name": "lytsocoder-vscode",
+  "displayName": "LytsoCoder",
+  "description": "One chat UI for Antigravity (agy), Claude Code, Codex and OpenCode \u2014 LytsoCoder for VS Code (https://github.com/Lytso/LytsoCoder).",
+  "publisher": "itslytso",
+  "version": "1.0.0",
   "license": "GPL-3.0",
   "private": true,
   "engines": {
@@ -208,7 +208,7 @@
     "dev:webview": "vite --config webview/vite.config.ts",
     "dev:server": "node esbuild.mjs --dev && node dist/dev-server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p webview/tsconfig.json",
-    "package": "npm run build:all && npx --yes @vscode/vsce package --out antigem.vsix",
+    "package": "npm run build:all && npx --yes @vscode/vsce package --out lytsocoder.vsix",
     "package:single": "npm run package",
     "package:linux-x64": "npm run build:all && node scripts/package-target.mjs linux-x64",
     "package:linux-arm64": "npm run build:all && node scripts/package-target.mjs linux-arm64",
@@ -223,12 +223,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/santoshkurmi/antigem_vscode_extension.git"
+    "url": "https://github.com/Lytso/lytsocoder-vscode.git"
   },
   "bugs": {
     "url": "https://github.com/santoshkurmi/antigem_vscode_extension/issues"
   },
-  "homepage": "https://github.com/santoshkurmi/antigem_vscode_extension#readme",
+  "homepage": "https://github.com/Lytso/LytsoCoder",
   "devDependencies": {
     "@vscode/vsce": "^3.2.1",
     "@material-design-icons/svg": "^0.14.15",

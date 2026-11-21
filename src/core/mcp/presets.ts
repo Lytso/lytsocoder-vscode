@@ -82,9 +82,9 @@ export function mcpPresets(): McpPreset[] {
     return { id, name, subtitle, icon, accent, serverName, transport: 'http', ...local(p), available, note: available ? undefined : (later ?? 'Coming soon') };
   };
   return [
-    customPluginTile(builtIn('custom_plugin', 'Custom Plugin MCP', 'Pick an installed plugin', 'extension', '#D97757', 'extension', '/mcp', 'Install a plugin first (Settings → Plugins)')),
-    builtIn('plugin_developer', 'Plugin Developer', 'Build & test AntiGem plugins', 'developer_mode', '#A78BFA', 'custom_plugin_developer_mcp', '/extension_developer'),
-    builtIn('browser', 'Browser', 'Control Chrome via the AntiGem extension', 'language', '#3B82F6', 'browser_mcp', '/browser'),
+    customPluginTile(builtIn('custom_plugin', 'Custom Plugin MCP', 'Pick an installed plugin', 'extension', '#00E5FF', 'extension', '/mcp', 'Install a plugin first (Settings → Plugins)')),
+    builtIn('plugin_developer', 'Plugin Developer', 'Build & test LytsoCoder plugins', 'developer_mode', '#A78BFA', 'custom_plugin_developer_mcp', '/extension_developer'),
+    builtIn('browser', 'Browser', 'Control Chrome via the LytsoCoder extension', 'language', '#3B82F6', 'browser_mcp', '/browser'),
     builtIn('notes', 'Notes & To-dos', 'Read & edit your notes', 'edit_note', 'warning', 'notes_mcp', '/notes'),
     builtIn('jarvis', 'Jarvis', 'Let Jarvis run tasks with your agents', 'record_voice_over', '#14B8A6', 'jarvis_mcp', '/jarvis'),
     builtIn('theme', 'Theme', 'Create & switch app themes', 'palette', 'tertiary', 'theme_mcp', '/theme'),
@@ -126,7 +126,7 @@ export function mcpPresets(): McpPreset[] {
 function customPluginTile(p: McpPreset): McpPreset {
   const plugins = pluginSource?.() ?? [];
   if (!p.available) return p;
-  if (!plugins.length) return { ...p, available: false, note: 'Install or enable a plugin first (Settings → Custom AntiGem Plugins)' };
+  if (!plugins.length) return { ...p, available: false, note: 'Install or enable a plugin first (Settings → Custom LytsoCoder Plugins)' };
   return {
     ...p,
     form: [

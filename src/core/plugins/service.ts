@@ -1,4 +1,4 @@
-// Custom AntiGem plugins in the extension (port of the app's BrowserExtensionManager + PluginRepositories +
+// Custom LytsoCoder plugins in the extension (port of the app's BrowserExtensionManager + PluginRepositories +
 // PluginUpdateCheckWorker): the bridge owns every plugin file (list, install, update, remove…); this service loads the
 // enabled plugins' workers into the Node runtime, serves each plugin's MCP at /mcp?extension=<id> (skills tools here,
 // worker tools through the runtime), keeps the repositories and checks them for updates every 12 h.
@@ -139,7 +139,7 @@ export class PluginService {
     this.timers.push(setInterval(() => void this.checkUpdates(false), HOUR));
   }
 
-  /** The browser the plugins' chrome.* API uses (the AntiGem Chrome extension client, Phase 4). */
+  /** The browser the plugins' chrome.* API uses (the LytsoCoder Chrome extension client, Phase 4). */
   setBrowser(provider: BrowserProvider) {
     this.browserUnsub?.();
     this.browser = provider;
@@ -320,7 +320,7 @@ export class PluginService {
       await this.refresh().catch(() => undefined);
       return r;
     } catch (e) {
-      // no AntiGem window serves the port: make the bridge change here (no workers run anywhere then)
+      // no LytsoCoder window serves the port: make the bridge change here (no workers run anywhere then)
       if ((e as { noLeader?: boolean }).noLeader) return (await this.local(op, args)) as T;
       throw e;
     }
@@ -338,7 +338,7 @@ export class PluginService {
     } catch (e) {
       throw Object.assign(new Error(e instanceof Error ? e.message : String(e)), { noLeader: true });
     }
-    if (!res.ok) throw Object.assign(new Error(`AntiGem MCP port: HTTP ${res.status}`), { noLeader: true });
+    if (!res.ok) throw Object.assign(new Error(`LytsoCoder MCP port: HTTP ${res.status}`), { noLeader: true });
     const body = (await res.json()) as { result?: McpResult; error?: { message: string } };
     if (body.error) throw new Error(body.error.message);
     const t = body.result?.content?.[0];
@@ -521,7 +521,7 @@ export class PluginService {
       const own = await this.ownTools(p);
       if (SKILL_TOOL_NAMES.includes(name) && !own.some((t) => t.name === name) && listSkills(p.dirPath).length) return wrap(callSkillTool(p.dirPath, name, args));
       if (!own.some((t) => t.name === name)) throw new Error(`Tool not found in extension ${p.id}: ${name}`);
-      if (!this.leader) throw new Error('Plugin tools run in the AntiGem window that serves the MCP port');
+      if (!this.leader) throw new Error('Plugin tools run in the LytsoCoder window that serves the MCP port');
       if (!(await this.isLoaded(p))) {
         await this.lock(() => this.load(p)).catch(() => undefined);
         if (!(await this.isLoaded(p)))
@@ -622,7 +622,7 @@ export class PluginService {
       notified[plugin.id] = offered.version;
       changed = true;
       const name = plugin.name || plugin.folderName;
-      const message = `Plugin update: ${name} ${versionLabel(plugin.version)} → ${versionLabel(offered.version)} · update it in Settings → Custom AntiGem Plugins`;
+      const message = `Plugin update: ${name} ${versionLabel(plugin.version)} → ${versionLabel(offered.version)} · update it in Settings → Custom LytsoCoder Plugins`;
       this.log(`[plugins] ${message}`);
       this.api?.broadcast({ type: 'toast', level: 'info', message });
       this.platform.notify?.(message, { label: 'Open plugins', run: () => this.api?.openSettings('plugins.installed') });

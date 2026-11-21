@@ -24,7 +24,7 @@ const cssVar = (name: string, fallback: string) => getComputedStyle(document.bod
 function wrapHtml(code: string): string {
   const t = code.trimStart();
   if (/^<!doctype/i.test(t) || /^<html[\s>]/i.test(t)) return code;
-  const primary = cssVar('--primary', '#D97757');
+  const primary = cssVar('--primary', '#00E5FF');
   const bg = cssVar('--background', '#1E1E1E');
   const text = cssVar('--on-surface', '#ECECF1');
   const card = cssVar('--surface', '#2A2A2A');

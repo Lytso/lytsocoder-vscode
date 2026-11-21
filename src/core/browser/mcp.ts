@@ -1,10 +1,10 @@
-// browser_mcp (/browser on the MCP host): port of the app's BrowserMcp.kt, driving Chrome through the AntiGem browser
+// browser_mcp (/browser on the MCP host): port of the app's BrowserMcp.kt, driving Chrome through the LytsoCoder browser
 // extension instead of the in-app WebView. Same tools, arguments, texts and result shapes (text + JPEG screenshots):
 // - page understanding through the app's own page helper (page-agent.js, element refs like ref_12),
 // - real (trusted) mouse / keyboard input through chrome.debugger,
 // - screenshots sized for model vision (long side <= 1568 px, ~1568 tokens) with coordinates mapped per tab,
 // - the agent's cursor, captions and the lock overlay drawn by the extension.
-// The extension enforces what the agent may touch (AntiGem tab group or the user's OK, blocklist); this file only
+// The extension enforces what the agent may touch (LytsoCoder tab group or the user's OK, blocklist); this file only
 // turns tool calls into its commands.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -225,7 +225,7 @@ export class BrowserTools {
     this.bridge.notify(command, payload);
   }
 
-  /** The tab a tool works on (tab_id, or the current AntiGem tab). Outside the group the user is asked first. */
+  /** The tab a tool works on (tab_id, or the current LytsoCoder tab). Outside the group the user is asked first. */
   private tab(args: Args, purpose = 'use', page = true): Promise<Tab> {
     return this.c<Tab>('tabs.resolve', { tabId: str(args.tab_id).trim() || null, purpose, page }, 150_000);
   }
@@ -403,8 +403,8 @@ export class BrowserTools {
     }));
     out.text(JSON.stringify(list, null, 2));
     const notes: string[] = [];
-    if (!list.length) notes.push('No AntiGem tabs are open: browser_open_url opens one (in the AntiGem tab group).');
-    if (r.others > 0) notes.push(`${r.others} other tab${r.others === 1 ? ' is' : 's are'} open outside the AntiGem tab group; you cannot see or use ${r.others === 1 ? 'it' : 'them'} unless the user drags ${r.others === 1 ? 'it' : 'them'} into the group.`);
+    if (!list.length) notes.push('No LytsoCoder tabs are open: browser_open_url opens one (in the LytsoCoder tab group).');
+    if (r.others > 0) notes.push(`${r.others} other tab${r.others === 1 ? ' is' : 's are'} open outside the LytsoCoder tab group; you cannot see or use ${r.others === 1 ? 'it' : 'them'} unless the user drags ${r.others === 1 ? 'it' : 'them'} into the group.`);
     if (notes.length) out.text(notes.join('\n'));
   }
 
@@ -516,7 +516,7 @@ export class BrowserTools {
     const mode = t?.viewMode === 'mobile' ? 'mobile' : 'desktop';
     const lockState = t?.locked ? ', locked' : '';
     const error = w.error ? `\nThe page reported an error: ${w.error}` : '';
-    const blocked = t?.blocked ? '\nThis page is on the AntiGem blocklist: you cannot read or control it. Go back or open another page.' : '';
+    const blocked = t?.blocked ? '\nThis page is on the LytsoCoder blocklist: you cannot read or control it. Go back or open another page.' : '';
     out.text(
       `Tab ${tabId}: ${w.loaded ? 'loaded' : 'still loading after 10 s'} ${finalUrl} — "${title}" [${mode} view${lockState}]${error}${blocked}\n` +
         'Next: browser_find or browser_read_page for refs, or browser_computer action=screenshot to see it.',
@@ -1181,7 +1181,7 @@ export class BrowserTools {
     if (now.url !== before.url) {
       const t = now.tabs.find((x) => x.id === tab.id);
       notes += `\nThe page changed to ${now.url} — "${clip(now.title, 80)}"${now.loading ? ' (still loading)' : ''}. Earlier refs may be gone.`;
-      if (t?.blocked) notes += ' It is on the AntiGem blocklist: you cannot read or control it, go back or open another page.';
+      if (t?.blocked) notes += ' It is on the LytsoCoder blocklist: you cannot read or control it, go back or open another page.';
     }
     const opened = now.tabs.filter((t) => !before.tabIds.has(t.id)).map((t) => `${t.id} (${t.url || 'loading'}${t.locked ? ', locked like this one' : ''})`);
     if (opened.length) notes += `\nThis opened a new tab: ${opened.join(', ')}. Pass its tab_id to work in it.`;

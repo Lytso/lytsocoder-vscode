@@ -1,5 +1,5 @@
 // Connect phone: the PC's half of the pairing crypto (SPAKE2 over the RFC 3526 2048-bit group, then AES-GCM boxes).
-// The phone side is the AntiGem app's PcPairingCrypto.kt; both follow docs/connect-to-pc-protocol.md byte for byte.
+// The phone side is the LytsoCoder app's PcPairingCrypto.kt; both follow docs/connect-to-pc-protocol.md byte for byte.
 import crypto from 'node:crypto';
 
 export const LABEL = 'antigem-pair-v1';

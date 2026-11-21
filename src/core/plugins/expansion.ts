@@ -23,12 +23,12 @@ export function pluginGuide(plugins: Plugin[], pluginId: string, skillName: stri
   const skill = skillName ? plugin.skills.find((s) => s.name === skillName) : undefined;
   if (skill) {
     const name = skill.name;
-    lines.push(`The user wants you to use the custom AntiGem plugin "${plugin.name}" (id: ${plugin.id}) and its skill "${name}".`);
+    lines.push(`The user wants you to use the custom LytsoCoder plugin "${plugin.name}" (id: ${plugin.id}) and its skill "${name}".`);
     lines.push(`- Read the skill file fully before acting: ${skill.path}`);
     if (skill.detailDir) lines.push(`- Its detail files are in ${skill.detailDir}/ — open them only when the skill refers to them.`);
     lines.push(`- If you cannot read that file but have the MCP server "${server}", call its get_skill tool with name "${name}" instead.`);
   } else {
-    lines.push(`The user wants you to use the custom AntiGem plugin "${plugin.name}" (id: ${plugin.id})${plugin.description.trim() ? `: ${plugin.description}` : '.'}`);
+    lines.push(`The user wants you to use the custom LytsoCoder plugin "${plugin.name}" (id: ${plugin.id})${plugin.description.trim() ? `: ${plugin.description}` : '.'}`);
     const skills = plugin.skills.map((s) => s.name);
     const dir = skillsDirOf(plugin);
     if (dir)
@@ -37,7 +37,7 @@ export function pluginGuide(plugins: Plugin[], pluginId: string, skillName: stri
   // the skill text arrives either way; only the plugin's own tools need its MCP server
   lines.push(
     plugin.toolCount > 0
-      ? `- The plugin's own tools come from the MCP server "${server}". Check whether the task depends on them. If it does and you don't have that server's tools, stop and ask the user to enable it in MCP settings → Custom AntiGem Plugin MCP. If it doesn't, do the task with the tools you already have.`
+      ? `- The plugin's own tools come from the MCP server "${server}". Check whether the task depends on them. If it does and you don't have that server's tools, stop and ask the user to enable it in MCP settings → Custom LytsoCoder Plugin MCP. If it doesn't, do the task with the tools you already have.`
       : '- This plugin has no tools of its own: follow its instructions with the tools you already have.',
   );
   // a plugin may build on another one (its skill or tools say so): point at the other plugins' skills
@@ -48,7 +48,7 @@ export function pluginGuide(plugins: Plugin[], pluginId: string, skillName: stri
       .map((o) => `${o.id} (${skillsDirOf(o)}/)`)
       .join('; ');
     lines.push(
-      `- If this plugin depends on another custom AntiGem plugin, also read that plugin's matching skill before using it. Other installed plugins with skills: ${listed}${others.length > 10 ? '; …' : ''}.`,
+      `- If this plugin depends on another custom LytsoCoder plugin, also read that plugin's matching skill before using it. Other installed plugins with skills: ${listed}${others.length > 10 ? '; …' : ''}.`,
     );
   }
   return lines.join('\n');
@@ -59,7 +59,7 @@ export function pluginGuide(plugins: Plugin[], pluginId: string, skillName: stri
  * picker open on its skills) and each of its skills (`/plu:<id>:<skill>`, with the plugin's name).
  */
 export function pluginSlashItems(plugins: Plugin[]): SlashCommandView[] {
-  const out: SlashCommandView[] = [{ command: '/plu:', description: 'Use a custom AntiGem plugin and its skills', kind: 'plugin' }];
+  const out: SlashCommandView[] = [{ command: '/plu:', description: 'Use a custom LytsoCoder plugin and its skills', kind: 'plugin' }];
   for (const p of plugins.filter((x) => x.isEnabled && (x.toolCount > 0 || x.skillCount > 0))) {
     const counts = [p.toolCount > 0 ? `${p.toolCount} tools` : '', p.skillCount > 0 ? `${p.skillCount} skills` : ''].filter(Boolean).join(' · ');
     out.push({

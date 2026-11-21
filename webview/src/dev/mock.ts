@@ -326,7 +326,7 @@ const COMMANDS: SlashCommandView[] = [
   { command: '/add-dir', description: 'Add a working directory', argumentHint: '<path>', kind: 'command' },
   { command: '/xlsx', description: 'Create and edit spreadsheets', kind: 'skill', pluginName: 'docs' },
   { command: '/release-notes', description: 'Draft release notes from the git log', kind: 'plugin', pluginName: 'antigem-tools' },
-  // custom AntiGem plugins: one row per plugin (`/plu:<id>:`, or `/plu:<id>` without skills) and one per skill
+  // custom LytsoCoder plugins: one row per plugin (`/plu:<id>:`, or `/plu:<id>` without skills) and one per skill
   { command: '/plu:weather-kit:', description: 'Weather Kit · 3 tools · 2 skills · Forecast and radar helpers', kind: 'plugin', pluginName: 'Weather Kit' },
   { command: '/plu:weather-kit:forecast', description: 'Fetch a 7-day forecast for a city', kind: 'plugin', pluginName: 'Weather Kit' },
   { command: '/plu:weather-kit:radar', description: 'Show the rain radar around a place', kind: 'plugin', pluginName: 'Weather Kit' },
@@ -954,7 +954,7 @@ export function startMock(post: Post): (m: ViewToHost) => void {
               1800 * SPEED,
             );
         }
-        // ?addatt: the "Add to AntiGem Chat" command pushes chips (a file, a folder, a selection)
+        // ?addatt: the "Add to LytsoCoder Chat" command pushes chips (a file, a folder, a selection)
         if (params.has('addatt'))
           setTimeout(
             () =>
@@ -1286,9 +1286,9 @@ export function startMock(post: Post): (m: ViewToHost) => void {
       }
       case 'powerOff':
         // the host asks first; then everything stops until Reconnect
-        for (const a of agents) Object.assign(a, { state: 'offline', label: 'Off', detail: 'AntiGem is turned off' });
+        for (const a of agents) Object.assign(a, { state: 'offline', label: 'Off', detail: 'LytsoCoder is turned off' });
         post({ type: 'agents', agents: agents.map((a) => ({ ...a })) });
-        post({ type: 'toast', level: 'info', message: 'AntiGem is turned off' });
+        post({ type: 'toast', level: 'info', message: 'LytsoCoder is turned off' });
         break;
       case 'settingChange':
         if (m.page === 'agents' && m.id === 'agents.enabled' && Array.isArray(m.value)) post({ type: 'toast', level: 'info', message: `Starting ${(m.value as string[]).length} agent(s)…` });
@@ -1509,7 +1509,7 @@ function showcaseHistory(cid: string): ChatMessage[] {
       tokenUsage: { promptTokens: 18_400, outputTokens: 1_120, cachedTokens: 42_000, cacheCreationTokens: 3_200, totalTokens: 64_720, durationMs: 33_000, isEstimated: false, model: 'anthropic/claude-opus-5-5', costUsd: 0.0912 },
       modelId: 'opus',
     },
-    { id: `${cid}-u2`, conversationId: cid, role: 'USER', content: 'Thanks! Now make the forecast cards a bit smaller.', sentContent: '<antigem-expansion command="">\n[AntiGem agent memory: from the app, not written by the user.]\n\n## Agent memory\nNo memories saved yet.\n</antigem-expansion>Thanks! Now make the forecast cards a bit smaller.', toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 5 * MIN, contextSummary: 'The user is building a weather dashboard (index.html, style.css, app.js). Done: glass cards, aurora background, hourly canvas chart with high-DPI scaling. Next: smaller forecast cards.' },
+    { id: `${cid}-u2`, conversationId: cid, role: 'USER', content: 'Thanks! Now make the forecast cards a bit smaller.', sentContent: '<antigem-expansion command="">\n[LytsoCoder agent memory: from the app, not written by the user.]\n\n## Agent memory\nNo memories saved yet.\n</antigem-expansion>Thanks! Now make the forecast cards a bit smaller.', toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 5 * MIN, contextSummary: 'The user is building a weather dashboard (index.html, style.css, app.js). Done: glass cards, aurora background, hourly canvas chart with high-DPI scaling. Next: smaller forecast cards.' },
     { id: `${cid}-a2`, conversationId: cid, role: 'ASSISTANT', content: 'Done: the forecast cards are now `min-width: 72px` with `gap: 8px`, so all seven fit on a phone.\n\nMarkers quoted in code stay text: `<!-- error -->{"title":"Boom","userMessage":"x"}<!-- /error -->` and `<!-- tool_call:<id> -->`, also mid-sentence <!-- tool_call:abc_1 --> like this.' +
         // Agent memory: a block the chat shows as a chip (the mock answers memoryRequest)
         `\n\n${fence}antigem-memory\nfile: card-sizes.md\nmode: passive\nscope: project\ndescription: Forecast cards are 72px wide so seven fit on a phone\n---\nForecast cards: min-width 72px, gap 8px (2026-11-21), so all seven fit on a phone.\n${fence}`, toolCalls: [], isStreaming: false, attachments: [], createdAt: t0 + 6 * MIN },

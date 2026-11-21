@@ -1,4 +1,4 @@
-// Settings → Custom AntiGem Plugins (port of the app's WebViewExtensionsScreen + PluginRepositoriesTab + PluginUi):
+// Settings → Custom LytsoCoder Plugins (port of the app's WebViewExtensionsScreen + PluginRepositoriesTab + PluginUi):
 // Installed (enable, Update / Update ZIP / Reload / Export / Remove), Install ZIP, Repositories, Store (Install /
 // Update), Guide & SDK. Pages: 'plugins', 'plugins.installed', 'plugins.repos', 'plugins.store', 'plugins.guide'.
 import fs from 'node:fs';
@@ -79,7 +79,7 @@ export function pluginHooks(service: PluginService): PluginHooks {
         .join(' · ');
       const removeText =
         p.location === 'bundled'
-          ? 'This came with AntiGem: it is removed now and may come back with an update. To keep it off, disable it instead.'
+          ? 'This came with LytsoCoder: it is removed now and may come back with an update. To keep it off, disable it instead.'
           : p.location === 'user_folder'
             ? `This deletes the folder ${p.dirPath} from your files. Make sure you have another copy if it is your source.`
             : `Deletes the plugin from ${p.dirPath}.`;
@@ -120,14 +120,14 @@ export function pluginHooks(service: PluginService): PluginHooks {
   const browserInfo = (): SettingItem => {
     const b = service.browserProvider();
     return b.available()
-      ? { kind: 'info', id: 'plugins.browser', label: 'Browser', value: 'AntiGem Chrome extension connected', tone: 'ok' }
+      ? { kind: 'info', id: 'plugins.browser', label: 'Browser', value: 'LytsoCoder Chrome extension connected', tone: 'ok' }
       : {
           kind: 'info',
           id: 'plugins.browser',
           label: 'Browser',
           value: 'Not connected',
           tone: 'muted',
-          description: 'Plugins that open or script web pages need the AntiGem Chrome extension. Skills and storage work without it.',
+          description: 'Plugins that open or script web pages need the LytsoCoder Chrome extension. Skills and storage work without it.',
         };
   };
 
@@ -140,7 +140,7 @@ export function pluginHooks(service: PluginService): PluginHooks {
       kind: 'info',
       id: 'plugins.runtime',
       label: 'Plugin runtime',
-      value: service.runtime.running() ? `Running · ${need.length} worker${need.length === 1 ? '' : 's'}` : service.isLeader ? 'Starting…' : 'Runs in another AntiGem window',
+      value: service.runtime.running() ? `Running · ${need.length} worker${need.length === 1 ? '' : 's'}` : service.isLeader ? 'Starting…' : 'Runs in another LytsoCoder window',
       tone: service.runtime.running() ? 'ok' : 'muted',
     };
   };
@@ -151,7 +151,7 @@ export function pluginHooks(service: PluginService): PluginHooks {
     const offered = [...service.repos.listings.values()].reduce((n, l) => n + l.plugins.length, 0);
     return {
       id: 'plugins',
-      title: 'Custom AntiGem Plugins',
+      title: 'Custom LytsoCoder Plugins',
       loading: !service.loaded() && !service.error(),
       error: !service.loaded() && service.error() ? service.error() : null,
       sections: [
@@ -159,7 +159,7 @@ export function pluginHooks(service: PluginService): PluginHooks {
           id: 'install',
           title: '',
           description:
-            'Install custom AntiGem plugins from ZIP files or from a repository. A plugin can have MCP tools, skills (skills/*.md), or both. Changes apply right away.',
+            'Install custom LytsoCoder plugins from ZIP files or from a repository. A plugin can have MCP tools, skills (skills/*.md), or both. Changes apply right away.',
           items: [
             ...progressItem(),
             { kind: 'button', id: 'plugins.installZip', label: 'Install ZIP', style: 'primary', description: 'Choose a ZIP with manifest.json plus a background worker, a skills/ folder, or both' },
@@ -426,7 +426,7 @@ export function pluginHooks(service: PluginService): PluginHooks {
       return {
         kind: 'page',
         id: 'plugins',
-        label: 'Custom AntiGem Plugins',
+        label: 'Custom LytsoCoder Plugins',
         icon: 'extension',
         description: updates ? `${list.length} installed · ${updates} update${updates === 1 ? '' : 's'}` : list.length ? `${list.filter((p) => p.isEnabled).length} of ${list.length} enabled` : 'Skills and MCP tools for every agent',
         badge: updates ? String(updates) : null,
@@ -521,7 +521,7 @@ export function pluginHooks(service: PluginService): PluginHooks {
         return '';
       }
       if (id === 'sdk.readme') {
-        platform.openText('AntiGem plugin SDK', fs.readFileSync(path.join(service.sdkDir, 'README.md'), 'utf8'), 'markdown');
+        platform.openText('LytsoCoder plugin SDK', fs.readFileSync(path.join(service.sdkDir, 'README.md'), 'utf8'), 'markdown');
         return '';
       }
       if (id === 'sdk.save') {

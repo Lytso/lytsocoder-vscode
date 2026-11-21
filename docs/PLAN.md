@@ -1,4 +1,4 @@
-# AntiGem for VS Code — feature plan (items 1–26 of problem.md)
+# LytsoCoder for VS Code — feature plan (items 1–26 of problem.md)
 
 Goal: everything the Android app does that makes sense on a PC, with the app's exact UI. Excluded: terminal MCP,
 REA (later), Antigravity cloud agents, voice output, Android-only tools (ADB, X11, automation, keep-awake).
@@ -62,7 +62,7 @@ Port of `data/jarvis/*` + `ui/jarvis/*` minus voice/wake word/Android services:
 - Storage: the extension store (managers, tasks ≤30, log ≤500, prefs). Loops run in the window that owns the MCP
   port.
 
-## Phase 4 — AntiGem browser extension + browser MCP (item 23) and Google Flow preset (26)
+## Phase 4 — LytsoCoder browser extension + browser MCP (item 23) and Google Flow preset (26)
 
 Status: built and tested end to end (headless Chrome for Testing 156): `chrome-extension/` (id
 `kbdjcdlfeoijcchepbldpldeaeijgibi`), `antigem-bridge --native-host` (`bridge/pkg/nativehost`), `src/core/browser/`
@@ -86,7 +86,7 @@ Windows: not yet (host and socket answer "not supported").
 ## Phase 5 — custom plugins (item 24)
 
 App-compatible plugins (manifest v2/v3, `skills/*.md`, optional `mcp_tools` + worker): install from ZIP or GitHub
-repositories (`antigem-plugins.json`, defaults dipeshkrydv/antigem_plugins + Santoshkurmi/antigem_plugins),
+repositories (`antigem-plugins.json`, defaults dipeshkrydv/antigem_plugins + Lytso/lytsocoder-plugins),
 enable/disable, update check, export, remove — through the bridge's `/api/custom-plugins/*`; `/plu:<id>[:<skill>]`
 expansion in the composer; skills served as MCP (`get_skills`, `get_skill`, `get_skill_file`) at
 `/mcp?extension=<id>`; plugin tools run in the app's Node plugin runtime (`assets/browser-runtime/*.mjs`) with its
@@ -174,7 +174,7 @@ own and Chrome's are written).
 - Browser control on Windows (by design off today): registry keys, `.bat` host, named pipe, no chmod/getuid.
 - macOS: Chrome "Load unpacked" picker hides `~/.antigem/chrome-extension` (Cmd+Shift+.).
 
-## Phase 7 — catch up with the AntiGem app (v1.1.8 → v2.0.1)
+## Phase 7 — catch up with the LytsoCoder app (v1.1.8 → v2.0.1)
 
 Compared app commits `36c3377..bbb2619` (branch `standalone`) with this extension (last push `9876c71`, v0.1.3).
 Bridge work goes into the fork in `bridge/` (port from `agy_ide_bridge/`).

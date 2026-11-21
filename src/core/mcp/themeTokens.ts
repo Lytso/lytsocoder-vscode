@@ -168,7 +168,7 @@ export const THEME_TOKENS: { key: string; group: string; about: string }[] = [
   {
     "key": "text_secondary",
     "group": "text",
-    "about": "Secondary text in AntiGem's own screens"
+    "about": "Secondary text in LytsoCoder's own screens"
   },
   {
     "key": "user_bubble",
@@ -273,7 +273,7 @@ export const THEME_TOKENS: { key: string; group: string; about: string }[] = [
   {
     "key": "border",
     "group": "line",
-    "about": "Borders of cards, inputs and chips in AntiGem's own screens"
+    "about": "Borders of cards, inputs and chips in LytsoCoder's own screens"
   },
   {
     "key": "fill",

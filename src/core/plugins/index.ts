@@ -1,4 +1,4 @@
-// Custom AntiGem plugins, wired for the extension / dev server: one call registers the plugin MCPs
+// Custom LytsoCoder plugins, wired for the extension / dev server: one call registers the plugin MCPs
 // (/mcp?extension=<id>) and the Plugin Developer MCP (/extension_developer) on the McpHost, attaches the settings
 // pages and `/plu:` to the host, and feeds the "Custom Plugin MCP" preset.
 import type { AppHost } from '../host';
@@ -18,7 +18,7 @@ export interface Plugins {
   service: PluginService;
   /** The MCP port is ours (or not): only the owner runs workers and checks updates. */
   setLeader(leader: boolean): void;
-  /** The browser the plugins' chrome.* APIs use (the AntiGem Chrome extension client). */
+  /** The browser the plugins' chrome.* APIs use (the LytsoCoder Chrome extension client). */
   setBrowser(provider: BrowserProvider): void;
 }
 

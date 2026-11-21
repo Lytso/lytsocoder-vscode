@@ -1,4 +1,4 @@
-// Downloads and ZIP extraction for what AntiGem installs by itself (Settings → STEM & diagrams' render bundle, Settings →
+// Downloads and ZIP extraction for what LytsoCoder installs by itself (Settings → STEM & diagrams' render bundle, Settings →
 // Agents → EGM): a streamed download with progress and its SHA-256, and an unzip that refuses any entry that would land
 // outside its folder (ports of the ZipInputStream loops in RenderBundle.kt / EgmManager.kt). No dependencies.
 import { createHash } from 'node:crypto';
@@ -7,7 +7,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 /** Sent to GitHub with every request (its API refuses requests without one). */
-export const USER_AGENT = 'AntiGem-VSCode';
+export const USER_AGENT = 'LytsoCoder-VSCode';
 
 /** A GET with the User-Agent; 403 = GitHub's hourly limit (EgmManager.httpGet). */
 export async function httpGet(url: string, accept?: string, signal?: AbortSignal): Promise<string> {

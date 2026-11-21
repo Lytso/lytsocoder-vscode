@@ -1,4 +1,4 @@
-// Settings → Connect phone: lets the AntiGem app on a phone use this PC's agents (the same chats on both). The phone
+// Settings → Connect phone: lets the LytsoCoder app on a phone use this PC's agents (the same chats on both). The phone
 // pairs once over the Wi-Fi with a 6-digit code (docs/connect-to-pc-protocol.md: SPAKE2, so nobody on the network can
 // learn or guess it offline); its SSH key is then allowed in this user's authorized_keys, limited to reading the
 // bridge token and tunnels to the bridge and hub ports (plus a shell with "Allow terminal from phone"). Nothing listens
@@ -182,7 +182,7 @@ export class PhoneAccess {
       res.end(JSON.stringify(body));
     };
     const p = this.pairing;
-    if (!p) return send(404, { error: 'This PC is not pairing right now. Open "Connect phone" in AntiGem on the PC.' });
+    if (!p) return send(404, { error: 'This PC is not pairing right now. Open "Connect phone" in LytsoCoder on the PC.' });
     if (Date.now() > p.until) {
       this.stopPairing();
       return send(410, { error: 'The code expired. Start pairing again on the PC.' });
@@ -285,7 +285,7 @@ export class PhoneAccess {
       id: 'phone',
       label: 'Connect phone',
       icon: 'phone_android',
-      description: 'Use this PC’s agents from the AntiGem app on your phone',
+      description: 'Use this PC’s agents from the LytsoCoder app on your phone',
       badge: this.isPairing() ? 'Pairing…' : n ? `${n} phone${n === 1 ? '' : 's'}` : null,
     };
   }
@@ -333,7 +333,7 @@ export class PhoneAccess {
         confirm: replacing ? `Pairing a new phone replaces ${replacing}: its access to this PC is removed. (Settings below: "Phones allowed".)` : null,
       });
     }
-    sections.push({ id: 'phone.pair', title: 'Pair a phone', description: 'In the AntiGem app: Settings › Connect to PC › turn it on › Add a PC.', items: pair });
+    sections.push({ id: 'phone.pair', title: 'Pair a phone', description: 'In the LytsoCoder app: Settings › Connect to PC › turn it on › Add a PC.', items: pair });
 
     sections.push({
       id: 'phone.list',

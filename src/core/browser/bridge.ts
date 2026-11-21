@@ -1,4 +1,4 @@
-// The VS Code end of the AntiGem browser link: a per-user Unix socket (dir 0700, socket 0600), or on Windows a named
+// The VS Code end of the LytsoCoder browser link: a per-user Unix socket (dir 0700, socket 0600), or on Windows a named
 // pipe, the native host (`antigem-bridge --native-host`, started by Chrome for our extension only) connects to.
 // Newline-delimited JSON:
 //   VS Code -> extension  {id, command, payload} | {type:'ping'}
@@ -43,7 +43,7 @@ export class BrowserError extends Error {
 }
 
 export const NOT_CONNECTED =
-  'The AntiGem Chrome extension is not connected. Install/connect the AntiGem Chrome extension: Settings → Browser (in AntiGem), then make sure Chrome is open.';
+  'The LytsoCoder Chrome extension is not connected. Install/connect the LytsoCoder Chrome extension: Settings → Browser (in LytsoCoder), then make sure Chrome is open.';
 
 interface Pending {
   resolve(v: unknown): void;
@@ -215,9 +215,9 @@ export class BrowserBridge {
   private started(r: 'listening' | 'busy', p: string): BridgeStatus {
     this.status = r;
     this.socketPath = p;
-    this.error = r === 'busy' ? `Another AntiGem window or VS Code already serves ${p}` : '';
+    this.error = r === 'busy' ? `Another LytsoCoder window or VS Code already serves ${p}` : '';
     if (r === 'listening') {
-      this.opts.log(`[browser] waiting for the AntiGem Chrome extension on ${p}`);
+      this.opts.log(`[browser] waiting for the LytsoCoder Chrome extension on ${p}`);
       this.heartbeat = setInterval(() => this.beat(), 15_000);
     } else this.opts.log(`[browser] ${this.error}`);
     this.changed();
@@ -319,7 +319,7 @@ export class BrowserBridge {
         return;
       }
       c.hello = h;
-      this.opts.log(`[browser] AntiGem extension ${h.version} connected (${shortBrowser(h.browser)})`);
+      this.opts.log(`[browser] LytsoCoder extension ${h.version} connected (${shortBrowser(h.browser)})`);
       this.changed();
       return;
     }

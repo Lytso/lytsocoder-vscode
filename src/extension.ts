@@ -39,7 +39,7 @@ const preview = new PreviewServer();
 let previewReady: Promise<void> | null = null;
 
 let sidebarView: vscode.WebviewView | undefined;
-/** The count on the AntiGem icon (kept for a side bar that is created later). */
+/** The count on the LytsoCoder icon (kept for a side bar that is created later). */
 let badge: vscode.ViewBadge | undefined;
 
 const MAX_SELECTION = 40_000;
@@ -68,7 +68,7 @@ function webviewHtml(webview: vscode.Webview, extUri: vscode.Uri): string {
     html = html.replace(/<script\b/g, `<script nonce="${nonce}"`);
     return html;
   } catch {
-    return `<!doctype html><html lang="en"><head><meta charset="UTF-8">${head}<meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="index.css"><title>AntiGem</title></head><body><div id="root"></div><script type="module" nonce="${nonce}" src="index.js"></script></body></html>`;
+    return `<!doctype html><html lang="en"><head><meta charset="UTF-8">${head}<meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="index.css"><title>LytsoCoder</title></head><body><div id="root"></div><script type="module" nonce="${nonce}" src="index.js"></script></body></html>`;
   }
 }
 
@@ -98,7 +98,7 @@ function connectWebview(
 }
 
 function openChatPanel(context: vscode.ExtensionContext, conversationId: string | null) {
-  const panel = vscode.window.createWebviewPanel('antigem.chatPanel', conversationId ? 'AntiGem Chat' : 'New Chat', vscode.ViewColumn.Beside, {
+  const panel = vscode.window.createWebviewPanel('antigem.chatPanel', conversationId ? 'LytsoCoder Chat' : 'New Chat', vscode.ViewColumn.Beside, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist'), vscode.Uri.joinPath(context.extensionUri, 'media')],
   });
@@ -159,7 +159,7 @@ function selectionChip(ctx: EditorContextView): ChatAttachment | null {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const output = vscode.window.createOutputChannel('AntiGem');
+  const output = vscode.window.createOutputChannel('LytsoCoder');
   const log = (line: string) => output.appendLine(`${new Date().toISOString().slice(11, 19)} ${line}`);
   const cfg = () => vscode.workspace.getConfiguration('antigem');
   const folders = () => vscode.workspace.workspaceFolders ?? [];
@@ -299,7 +299,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (
         !firstChoice &&
         (await vscode.window.showWarningMessage(
-          'Restart the AntiGem bridge to apply the agents? Running chats stop in every VS Code window.',
+          'Restart the LytsoCoder bridge to apply the agents? Running chats stop in every VS Code window.',
           { modal: true },
           'Restart bridge',
         )) !== 'Restart bridge'
@@ -378,7 +378,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     },
     runInTerminal: (command, cwd) => {
-      if (!terminal || terminal.exitStatus !== undefined) terminal = vscode.window.createTerminal({ name: 'AntiGem', cwd: cwd || homeDir() });
+      if (!terminal || terminal.exitStatus !== undefined) terminal = vscode.window.createTerminal({ name: 'LytsoCoder', cwd: cwd || homeDir() });
       terminal.show(true);
       terminal.sendText(command, false);
     },
@@ -495,9 +495,9 @@ export function activate(context: vscode.ExtensionContext) {
   mcp.register(jarvisMcp(jarvis));
   // Agent memory: memories and chat history the bridge keeps for every agent (Settings → Agents → Agent memory)
   host.attachMemory(new AgentMemory({ bridge, store: kv, log }));
-  // custom AntiGem plugins: /mcp?extension=<id>, /extension_developer, settings, `/plu:` (workers run in the port owner)
+  // custom LytsoCoder plugins: /mcp?extension=<id>, /extension_developer, settings, `/plu:` (workers run in the port owner)
   const plugins = setupPlugins(host, { bridge, store: kv, log, mcp, platform });
-  // the AntiGem Chrome extension (native messaging -> per-user socket, served by the MCP port owner): /browser + Settings → Browser
+  // the LytsoCoder Chrome extension (native messaging -> per-user socket, served by the MCP port owner): /browser + Settings → Browser
   const browserBridge = new BrowserBridge({ log });
   // plugins' chrome.* APIs act on Chrome through the same extension link
   plugins.setBrowser(chromeExtensionBrowser(browserBridge));
@@ -514,7 +514,7 @@ export function activate(context: vscode.ExtensionContext) {
       mcpPort: mcp.port,
     }),
   );
-  // Settings → Connect phone: the AntiGem app on a phone uses this PC's agents (pairs over the Wi-Fi, then SSH)
+  // Settings → Connect phone: the LytsoCoder app on a phone uses this PC's agents (pairs over the Wi-Fi, then SSH)
   host.attachPhone(
     new PhoneAccess({
       store: kv,
@@ -536,7 +536,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // ---- editor → composer: the active file / selection, debounced
   let ctxTimer: NodeJS.Timeout | undefined;
-  // focusing a non-text editor (the AntiGem chat panel, a preview) leaves no active text editor: the last one is
+  // focusing a non-text editor (the LytsoCoder chat panel, a preview) leaves no active text editor: the last one is
   // still offered while it is visible, so its selection is not lost on the way to the composer
   let lastEditor: vscode.TextEditor | undefined;
   const pushContext = () => {
@@ -550,7 +550,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
   pushContext();
 
-  /** Explorer / editor-tab "Add to AntiGem Chat": files and folders as chips. */
+  /** Explorer / editor-tab "Add to LytsoCoder Chat": files and folders as chips. */
   const addPaths = async (uri?: vscode.Uri, uris?: vscode.Uri[]) => {
     const list = (uris?.length ? uris : uri ? [uri] : vscode.window.activeTextEditor ? [vscode.window.activeTextEditor.document.uri] : []).filter((u) => u.scheme === 'file');
     if (!list.length) return;
@@ -558,7 +558,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (atts.length) await deliver({ type: 'addAttachments', attachments: atts });
   };
 
-  /** Editor "Add Selection to AntiGem Chat" (no selection = the whole file as a chip). */
+  /** Editor "Add Selection to LytsoCoder Chat" (no selection = the whole file as a chip). */
   const addSelection = async () => {
     const ctx = editorContext(vscode.window.activeTextEditor);
     if (!ctx) return;

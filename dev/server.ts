@@ -181,7 +181,7 @@ mcp.register(jarvisMcp(jarvis));
 // Agent memory: memories and chat history the bridge keeps for every agent
 host.attachMemory(new AgentMemory({ bridge, store: kv, log }));
 const plugins = setupPlugins(host, { bridge, store: kv, log, mcp, platform });
-// the AntiGem Chrome extension link (socket path: ANTIGEM_BROWSER_SOCKET, else the per-user default)
+// the LytsoCoder Chrome extension link (socket path: ANTIGEM_BROWSER_SOCKET, else the per-user default)
 const browserBridge = new BrowserBridge({ log });
 // plugins' chrome.* APIs act on Chrome through the same extension link
 plugins.setBrowser(chromeExtensionBrowser(browserBridge));

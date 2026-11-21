@@ -1,5 +1,5 @@
 // The browser a plugin's chrome.* API acts on. In the app it is the in-app WebView (the native bridge's
-// /api/browser/* + WebView DevTools); on PC it is the user's Chrome through the AntiGem Chrome extension (Phase 4's
+// /api/browser/* + WebView DevTools); on PC it is the user's Chrome through the LytsoCoder Chrome extension (Phase 4's
 // command client implements BrowserProvider). Without one, every browser call fails with a clear message and
 // skills-only / storage-only plugins keep working.
 import { execFile } from 'node:child_process';
@@ -53,7 +53,7 @@ export interface BrowserProvider {
 }
 
 const NO_BROWSER =
-  'No browser is connected. Install the AntiGem Chrome extension and connect it (Settings → Browser) to let plugins use browser tabs.';
+  'No browser is connected. Install the LytsoCoder Chrome extension and connect it (Settings → Browser) to let plugins use browser tabs.';
 
 /** No browser: every call fails with a message that says how to get one. */
 export class NoBrowser implements BrowserProvider {

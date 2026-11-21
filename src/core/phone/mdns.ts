@@ -1,4 +1,4 @@
-// Connect phone: announces this PC on the Wi-Fi as "_antigem-pc._tcp" while pairing is open, so the AntiGem app lists
+// Connect phone: announces this PC on the Wi-Fi as "_antigem-pc._tcp" while pairing is open, so the LytsoCoder app lists
 // it under Nearby PCs (Android's NsdManager). Uses the system's announcer where there is one (macOS: dns-sd, always
 // there; Linux: avahi-publish-service when installed) and otherwise answers mDNS itself (Windows, Linux without
 // avahi): a small responder on 224.0.0.251:5353 that only knows this one service.

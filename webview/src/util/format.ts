@@ -56,7 +56,7 @@ export function agentAccent(a: AgentKind): string {
 /** Raw hex accents (for color-mix in inline styles it is the same as the CSS var). */
 export const AGENT_HEX: Record<AgentKind, string> = {
   AGY: '#3B82F6',
-  CLAUDE: '#D97757',
+  CLAUDE: '#00E5FF',
   OPENCODE: '#10B981',
   CODEX: '#8B5CF6',
 };

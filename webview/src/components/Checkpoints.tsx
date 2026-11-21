@@ -543,7 +543,7 @@ function TrackProjectAsk() {
     >
       <div class="cp-ask">
         <div>
-          Before each message, AntiGem saves a hidden copy of this project's files. Every message then gets a restore point: go back to before it, with a
+          Before each message, LytsoCoder saves a hidden copy of this project's files. Every message then gets a restore point: go back to before it, with a
           preview of each file that changes. Your git history, branches and staging stay untouched.
         </div>
         <Show when={ask() && !ask()!.isGit}>

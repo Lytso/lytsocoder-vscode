@@ -170,7 +170,7 @@ function buildPages(enabled: AgentKind[] = ['AGY', 'CLAUDE', 'CODEX', 'OPENCODE'
               description: 'Built-in tools and popular servers, one tap to add',
               tiles: [
                 { id: 'plugin', name: 'Custom Plugin MCP', subtitle: 'Pick an installed plugin', icon: 'extension', accent: 'primary' },
-                { id: 'developer', name: 'Plugin Developer', subtitle: 'Build & test AntiGem plugins', icon: 'developer_mode', accent: '#9B6BDF' },
+                { id: 'developer', name: 'Plugin Developer', subtitle: 'Build & test LytsoCoder plugins', icon: 'developer_mode', accent: '#9B6BDF' },
                 { id: 'browser', name: 'Browser', subtitle: 'Control the in-app browser', icon: 'language', accent: 'info', added: true },
                 { id: 'notes', name: 'Notes & To-dos', subtitle: 'Read & edit your notes', icon: 'edit_note', accent: 'warning' },
                 { id: 'jarvis', name: 'Jarvis', subtitle: 'Voice control of this app', icon: 'record_voice_over', accent: 'accent-teal', disabled: true },
@@ -621,7 +621,7 @@ export function createMockSettings(post: Post) {
           } else if (m.id === 'restart') {
             toast('Restarting the bridge…');
           } else if (m.id === 'logs') {
-            toast('Would open the AntiGem output channel');
+            toast('Would open the LytsoCoder output channel');
           } else if (m.id === 'agy.signout') {
             toast('Signed out of Antigravity', 'warning');
           } else toast(`Action ${m.id}`);

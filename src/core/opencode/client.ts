@@ -59,7 +59,7 @@ export interface OpenCodeCliJob {
   log: string;
 }
 
-/** One MCP server as Settings shows it. `saved`: added from AntiGem (kept in the bridge's OpenCode config). */
+/** One MCP server as Settings shows it. `saved`: added from LytsoCoder (kept in the bridge's OpenCode config). */
 export interface OpenCodeMcpServer {
   name: string;
   saved: boolean;
@@ -262,7 +262,7 @@ export class OpenCodeClient {
   }
 
   /** Uses an API key for a built-in provider (OpenCode saves it on the server). */
-  async connectKey(integrationId: string, key: string, answer: Record<string, unknown> = {}, label = 'Added from AntiGem'): Promise<void> {
+  async connectKey(integrationId: string, key: string, answer: Record<string, unknown> = {}, label = 'Added from LytsoCoder'): Promise<void> {
     await this.post(`/integration/${encodeURIComponent(integrationId)}/connect/key`, { key, ...(Object.keys(answer).length ? { answer } : {}), label });
   }
 
@@ -271,7 +271,7 @@ export class OpenCodeClient {
     const r = await this.post(`/integration/${encodeURIComponent(integrationId)}/connect/oauth`, {
       methodID: methodId,
       ...(Object.keys(answer).length ? { answer } : {}),
-      label: 'Added from AntiGem',
+      label: 'Added from LytsoCoder',
     });
     const d = obj(r, 'data') ?? r;
     if (!str(d, 'attemptID')) throw new Error('OpenCode did not start the sign-in');
@@ -307,11 +307,11 @@ export class OpenCodeClient {
     await this.post(`/integration/${encodeURIComponent(integrationId)}/connect/external`, {
       methodID: methodId,
       ...(Object.keys(answer).length ? { answer } : {}),
-      label: 'Added from AntiGem',
+      label: 'Added from LytsoCoder',
     });
   }
 
-  /** The servers added from AntiGem plus every server OpenCode reports (the user's own config included). */
+  /** The servers added from LytsoCoder plus every server OpenCode reports (the user's own config included). */
   async mcpList(): Promise<OpenCodeMcpServer[]> {
     const o = await this.executeJson('/mcp');
     if (o?.success === false) throw new Error(str(o, 'error') ?? 'Could not list the MCP servers');

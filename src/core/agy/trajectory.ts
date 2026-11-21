@@ -18,7 +18,7 @@ interface UserTurn {
   rawText: string;
   attachments: ChatAttachment[];
   createdAt: number | null;
-  /** The app's id of the message when AntiGem sent it (its `client_msg:` tag): its project checkpoint key. */
+  /** The app's id of the message when LytsoCoder sent it (its `client_msg:` tag): its project checkpoint key. */
   clientMessageId?: string | null;
 }
 

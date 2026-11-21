@@ -151,7 +151,7 @@ export class HostSettings {
   builtInText(h = '##'): string {
     return [
       `${h} Showing things in this chat`,
-      'The user reads you in AntiGem (a chat inside VS Code). Besides Markdown it renders these, each on its own line (absolute paths, no spaces):',
+      'The user reads you in LytsoCoder (a chat inside VS Code). Besides Markdown it renders these, each on its own line (absolute paths, no spaces):',
       '- Image: `![caption](/abs/path/pic.png)` (or an https URL)',
       '- Video: `![caption](/abs/path/clip.mp4)` (mp4, webm, mov: plays in the chat) · YouTube: `![title](https://www.youtube.com/watch?v=VIDEO_ID)` (a card that opens it in the browser)',
       '- File: `[name](/abs/path/file.ext)` (the user clicks to open it in the editor)',
@@ -231,10 +231,10 @@ export class HostSettings {
     if (sendFirst) {
       note +=
         isNew
-          ? '[AntiGem app context: from the app the user chats through, not written by the user. Follow it for this whole chat; it is not repeated.]'
+          ? '[LytsoCoder app context: from the app the user chats through, not written by the user. Follow it for this whole chat; it is not repeated.]'
           : known
-            ? '[AntiGem app context, updated: it replaces the earlier copy in this chat. Follow it from now on.]'
-            : '[AntiGem app context: from the app the user chats through. Follow it from now on in this chat.]';
+            ? '[LytsoCoder app context, updated: it replaces the earlier copy in this chat. Follow it from now on.]'
+            : '[LytsoCoder app context: from the app the user chats through. Follow it from now on in this chat.]';
       note += '\n\n' + first;
       if (chatId) this.markSent(chatId, fp);
     }
@@ -260,7 +260,7 @@ export class HostSettings {
         {
           id: 'connection',
           title: 'Bridge',
-          description: 'The local AntiGem bridge runs the agents for every VS Code window.',
+          description: 'The local LytsoCoder bridge runs the agents for every VS Code window.',
           items: [
             { kind: 'info', id: 'conn.bridge', label: 'Bridge', value: `127.0.0.1:${info.port}`, tone: 'muted' },
             { kind: 'info', id: 'conn.hub', label: 'Antigravity hub', value: `127.0.0.1:${info.hubPort}`, tone: 'muted' },
@@ -315,7 +315,7 @@ export class HostSettings {
         {
           id: 'notify.when',
           title: '',
-          description: 'For chats you send from AntiGem, never for the chat you are looking at.',
+          description: 'For chats you send from LytsoCoder, never for the chat you are looking at.',
           items: [
             { kind: 'toggle', id: 'done', label: 'A reply is finished', description: 'Also when a chat stops with an error. Not when you stop it yourself.', value: p.done },
             { kind: 'toggle', id: 'waiting', label: 'An agent needs you', description: 'A permission request (run a command, edit a file…) or a question', value: p.waiting },
@@ -334,7 +334,7 @@ export class HostSettings {
               disabled: !!systemUnavailable,
             },
             { kind: 'toggle', id: 'inApp', label: 'VS Code pop-ups', description: 'While VS Code is in front but the chat is not on screen', value: p.inApp },
-            { kind: 'toggle', id: 'badge', label: 'Count on the AntiGem icon', description: 'Chats that finished or wait for you, until you open them', value: p.badge },
+            { kind: 'toggle', id: 'badge', label: 'Count on the LytsoCoder icon', description: 'Chats that finished or wait for you, until you open them', value: p.badge },
             { kind: 'button', id: 'notify.test', label: 'Send a test notification', description: 'Shows one the way a finished chat is announced' },
           ],
         },
@@ -432,7 +432,7 @@ export class HostSettings {
           {
             id: 'builtin',
             title: 'Built-in',
-            description: 'Written by AntiGem: tells every agent how to show images, videos, diagrams, math and live web pages in this chat.',
+            description: 'Written by LytsoCoder: tells every agent how to show images, videos, diagrams, math and live web pages in this chat.',
             items: [
               {
                 kind: 'toggle',

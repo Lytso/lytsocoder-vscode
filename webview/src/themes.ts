@@ -218,7 +218,7 @@ const M3_DARK: Record<string, number> = {
 const SYNTAX_KEYS = ['syntax_keyword', 'syntax_type', 'syntax_string', 'syntax_number', 'syntax_comment', 'syntax_function', 'syntax_annotation', 'syntax_punctuation'];
 const ONE_DARK = [0xffc678dd, 0xffe5c07b, 0xff98c379, 0xffd19a66, 0xff7f848e, 0xff61afef, 0xffe5c07b, 0xffabb2bf];
 
-/** The original AntiGem look ("Porcelain" light / "Amber Night" dark). */
+/** The original LytsoCoder look ("Porcelain" light / "Amber Night" dark). */
 function antigem(dark: boolean): AppTheme {
   const c: Record<string, number> = { primary: 0xffd97706, secondary: 0xffb45309, on_primary: 0xffffffff };
   if (dark) {
@@ -246,7 +246,7 @@ function antigem(dark: boolean): AppTheme {
     name: dark ? 'Amber Night' : 'Porcelain',
     dark,
     builtIn: true,
-    about: dark ? "AntiGem's original warm dark look with the amber accent" : "AntiGem's original clean light look with the amber accent",
+    about: dark ? "LytsoCoder's original warm dark look with the amber accent" : "LytsoCoder's original clean light look with the amber accent",
     colors: c,
   };
 }
@@ -317,7 +317,7 @@ export const BUILT_IN: AppTheme[] = [
     [0xfffdf6e3, 0xfffdf6e3, 0xfffffbef, 0xffeee8d5, 0xff073642, 0xff586e75, 0xff268bd2, 0xff2aa198, 0xff6c71c4, 0xff859900, 0xffb58900, 0xffdc322f, 0xff268bd2, 0xff002b36],
     [0xff859900, 0xffb58900, 0xff2aa198, 0xffd33682, 0xff657b83, 0xff268bd2, 0xffcb4b16, 0xff93a1a1]),
   // dark: the same (Dark Modern, VS Code's default dark, is the default). Then Obsidian, the looks of VS Code's other
-  // dark themes (most people want the chat to match their editor), other popular editor themes, then AntiGem's own.
+  // dark themes (most people want the chat to match their editor), other popular editor themes, then LytsoCoder's own.
   seeded('vs_dark_modern', 'Dark Modern', "VS Code's default dark: near-black side bar with a bright blue accent", true,
     [0xff181818, 0xff181818, 0xff1f1f1f, 0xff2b2b2b, 0xffcccccc, 0xff9d9d9d, 0xff4daafc, 0xff0078d4, 0xffc586c0, 0xff2ea043, 0xffcca700, 0xfff85149, 0xff4daafc, 0xff1f1f1f],
     [0xffc586c0, 0xff4ec9b0, 0xffce9178, 0xffb5cea8, 0xff6a9955, 0xffdcdcaa, 0xff9cdcfe, 0xffcccccc]),
@@ -340,7 +340,7 @@ export const BUILT_IN: AppTheme[] = [
     [0xff1e1f1c, 0xff1e1f1c, 0xff272822, 0xff3e3d32, 0xfff8f8f2, 0xffa59f85, 0xff66d9ef, 0xfff92672, 0xffae81ff, 0xffa6e22e, 0xffe6db74, 0xfff92672, 0xff66d9ef, 0xff272822],
     [0xfff92672, 0xff66d9ef, 0xffe6db74, 0xffae81ff, 0xff88846f, 0xffa6e22e, 0xfffd971f, 0xfff8f8f2]),
   midnightAurora(),
-  seeded('graphite', 'Graphite', "Warm charcoal with a glowing amber accent: AntiGem's look, refined", true,
+  seeded('graphite', 'Graphite', "Warm charcoal with a glowing amber accent: LytsoCoder's look, refined", true,
     [0xff121212, 0xff121212, 0xff1b1b1c, 0xff262628, 0xffedebe8, 0xffa29e98, 0xfff0a04b, 0xffd9822b, 0xffb794f4, 0xff5bd18a, 0xfff4c152, 0xffef6b6b, 0xff6cb4f2, 0xff161616],
     [0xffc678dd, 0xffe5c07b, 0xff98c379, 0xffd19a66, 0xff6b717d, 0xff61afef, 0xffe5c07b, 0xffabb2bf]),
   seeded('midnight', 'Midnight', 'Pure black for OLED screens, with an electric cyan accent', true,

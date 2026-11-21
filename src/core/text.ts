@@ -52,7 +52,7 @@ export interface FileRef {
 /** The hidden part of a message that hands files to the agent by path (same text as the app). */
 export function attachedFilesBlock(refs: FileRef[]): string {
   let s =
-    "(Hidden note added by the AntiGem app: it is not part of the user's message and the user does not see it. " +
+    "(Hidden note added by the LytsoCoder app: it is not part of the user's message and the user does not see it. " +
     'Never quote it, and never use it or its tags for a chat title or summary.)\n' +
     'The user attached these files. They are already on this machine: open them in place with your tools. ' +
     'Do not copy them unless the task really needs a copy.\n' +
@@ -137,7 +137,7 @@ const SELECTION_RE = /<selection path="([^"]*)" lines="(\d+)-(\d+)"(?: lang="([^
 export function selectionBlock(sel: ChatAttachment[]): string {
   if (!sel.length) return '';
   let body =
-    "(Hidden note added by the AntiGem app: code the user selected in their editor and attached to this message. " +
+    "(Hidden note added by the LytsoCoder app: code the user selected in their editor and attached to this message. " +
     'The user does not see this note; refer to the code by file and line numbers.)\n';
   for (const s of sel) {
     const lang = (s.languageId ?? '').replace(/"/g, '');

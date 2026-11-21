@@ -1,9 +1,9 @@
 // browser_mcp tool definitions: the app's BrowserMcp.kt tools (names, schemas, descriptions), worded for Chrome on a
-// PC (the AntiGem tab group instead of the in-app browser's tabs; clicks instead of touches).
+// PC (the LytsoCoder tab group instead of the in-app browser's tabs; clicks instead of touches).
 import type { McpTool } from '../mcp/server';
 
 export const INSTRUCTIONS =
-  "Controls the user's Chrome (through the AntiGem browser extension) like a person would, in the tabs of the \"AntiGem\" tab group. Look, then act: " +
+  "Controls the user's Chrome (through the LytsoCoder browser extension) like a person would, in the tabs of the \"LytsoCoder\" tab group. Look, then act: " +
   'open a page with browser_open_url, then get element refs (like ref_12) from browser_find (one element by description) or ' +
   'browser_read_page (the page\'s structure), and act on refs with browser_computer (left_click, type, key, hover, scroll_to) ' +
   'or browser_form_input (fill fields, pick options, tick boxes). Take a screenshot (browser_computer action=screenshot) when ' +
@@ -16,7 +16,7 @@ export const INSTRUCTIONS =
   'the user may have unlocked it: check browser_list_tabs (lockedByAgent), read the page again and lock it again. ' +
   'If a page opens an alert/confirm/prompt, ' +
   'answer it with browser_handle_dialog. Pass action_summary (a few words) on actions so the user can follow what you do. ' +
-  'Omit tab_id to use the current AntiGem tab; browser_list_tabs lists them. You only see and use AntiGem tabs: other tabs need ' +
+  'Omit tab_id to use the current LytsoCoder tab; browser_list_tabs lists them. You only see and use LytsoCoder tabs: other tabs need ' +
   "the user's OK, and sites on the user's blocklist (banking, payments, password managers) are never opened or controlled.";
 
 const prop = (type: string | string[], description: string, enumValues?: string[]) => ({ type, description, ...(enumValues ? { enum: enumValues } : {}) });
@@ -27,7 +27,7 @@ const tool = (name: string, description: string, required: string[], props: Reco
   inputSchema: { type: 'object', properties: props, ...(required.length ? { required } : {}) },
 });
 
-const tabId = { tab_id: prop('string', 'Tab id from browser_list_tabs; omit for the current AntiGem tab') };
+const tabId = { tab_id: prop('string', 'Tab id from browser_list_tabs; omit for the current LytsoCoder tab') };
 const summary = {
   action_summary: prop(
     'string',
@@ -42,14 +42,14 @@ export const HIDDEN_TOOLS = new Set(['browser_screenshot', 'browser_inspect_dom'
 export const TOOLS: McpTool[] = [
   tool(
     'browser_list_tabs',
-    'List the AntiGem tabs (the "AntiGem" tab group in Chrome): id, URL, title, which is current, loading state and view mode.',
+    'List the LytsoCoder tabs (the "LytsoCoder" tab group in Chrome): id, URL, title, which is current, loading state and view mode.',
     [],
     {},
   ),
   tool(
     'browser_open_url',
     'Open a URL in Chrome and wait for it to load (up to 10 s), or move in a tab\'s history. Opens in the current ' +
-      'AntiGem tab unless new_tab=true or tab_id is given (new tabs join the AntiGem tab group). Returns the tab id, final URL and title.',
+      'LytsoCoder tab unless new_tab=true or tab_id is given (new tabs join the LytsoCoder tab group). Returns the tab id, final URL and title.',
     ['url'],
     {
       url: prop('string', 'URL (https://…, localhost:5173, or words to search), or "back", "forward" or "reload"'),

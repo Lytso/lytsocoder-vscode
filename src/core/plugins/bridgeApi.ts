@@ -27,7 +27,7 @@ export class PluginBridge {
       } catch {
         msg = text.trim().slice(0, 300);
       }
-      throw new Error(msg || `AntiGem bridge HTTP ${res.status}`);
+      throw new Error(msg || `LytsoCoder bridge HTTP ${res.status}`);
     }
     return res;
   }

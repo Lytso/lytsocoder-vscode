@@ -157,7 +157,7 @@ export class ClaudeProviders {
       { id: 'timeout_sec', label: 'Request timeout, seconds (optional)', kind: 'text', value: num(p?.timeout_sec) > 0 ? String(p!.timeout_sec) : '', placeholder: 'default' },
       { id: 'max_retries', label: 'Retries when a request fails, 0–10 (0 = fail at once)', kind: 'text', value: retries > 0 ? String(retries) : retries < 0 ? '0' : '', placeholder: 'default: 3' },
       { id: 'disable_betas', label: 'Disable experimental betas (if the provider answers 400 about unknown fields or beta headers)', kind: 'toggle', value: p?.disable_betas ? 'true' : 'false' },
-      { id: 'headers', label: 'Headers (Name: value, one per line)', kind: 'multiline', value: pairsText(p?.headers, ': '), placeholder: 'X-Title: AntiGem' },
+      { id: 'headers', label: 'Headers (Name: value, one per line)', kind: 'multiline', value: pairsText(p?.headers, ': '), placeholder: 'X-Title: LytsoCoder' },
       { id: 'extra_env', label: 'Environment (NAME=value, one per line; wins over everything above)', kind: 'multiline', value: pairsText(p?.extra_env, '='), placeholder: 'CLAUDE_CODE_MAX_OUTPUT_TOKENS=8192' },
     ];
   }

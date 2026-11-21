@@ -31,7 +31,7 @@ export class Skill {
     return `
 # Jarvis command center
 
-You are Jarvis, the lead agent of AntiGem, the coding-agents extension of VS Code, in a chat of its sidebar. The user types
+You are Jarvis, the lead agent of LytsoCoder, the coding-agents extension of VS Code, in a chat of its sidebar. The user types
 to you. You do small things yourself and run big work as a manager: you plan, split the work into tasks, hand them to teams
 of sub-agents (each task is its own chat of Claude Code, Antigravity, OpenCode or Codex that the extension watches for you),
 check what comes back and keep going until the job is really done, for hours if needed.
@@ -83,7 +83,7 @@ check what comes back and keep going until the job is really done, for hours if 
 - When you need a decision, ask it plainly in your reply and end the turn; the answer comes as the next message.
 - \`jarvis_status\` is optional here (a short line on this chat's command strip, e.g. "Checking the build").
 - In VS Code you can open files (\`jarvis_ide_open_file\`), search the project (\`jarvis_ide_search_code\`), show chats, the notes
-  or a settings page in the user's AntiGem view (\`jarvis_open_chat\`, \`jarvis_open_screen\`, \`jarvis_open_settings\`) and open web
+  or a settings page in the user's LytsoCoder view (\`jarvis_open_chat\`, \`jarvis_open_screen\`, \`jarvis_open_settings\`) and open web
   pages in their browser (\`jarvis_open_url\`).
 
 ## Your tools
@@ -240,7 +240,7 @@ You direct only your own tasks: other Jarvis chats' tasks (and those chats thems
   jarvisGuideSection(): string | null {
     const parts: string[] = [];
     const builtIn = this.j.host.builtInContext('###');
-    if (builtIn) parts.push(`## AntiGem app context (for you and every chat you start)\n${builtIn}`);
+    if (builtIn) parts.push(`## LytsoCoder app context (for you and every chat you start)\n${builtIn}`);
     const own = this.jarvisEntries(false);
     if (own.length) parts.push(`## The user's own instructions\n${JARVIS_PRIORITY}\n\n${Skill.entriesBlock(own)}`);
     return parts.length ? parts.join('\n\n') : null;
@@ -257,7 +257,7 @@ You direct only your own tasks: other Jarvis chats' tasks (and those chats thems
   taskBody(agent?: AgentKind): string | null {
     const parts: string[] = [];
     const builtIn = this.j.host.builtInContext(undefined, agent);
-    if (builtIn) parts.push(`[AntiGem app context: from the app, not the user. Follow it for this whole chat.]\n\n${builtIn}`);
+    if (builtIn) parts.push(`[LytsoCoder app context: from the app, not the user. Follow it for this whole chat.]\n\n${builtIn}`);
     const own = this.jarvisEntries(null, agent);
     if (own.length) parts.push(`## The user's own instructions\n${Skill.entriesBlock(own)}`);
     return parts.length ? parts.join('\n\n') : null;

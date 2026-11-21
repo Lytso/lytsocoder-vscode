@@ -72,7 +72,7 @@ const MAX_ALIASES = 300;
 /** While a reply runs, the usage limits are read again when no update came for this long. */
 const LIMITS_STALE_MS = 4 * 60_000;
 /** The context card's colors (free space stays an empty track). */
-const CONTEXT_COLORS = ['#6A9BCC', '#D97757'];
+const CONTEXT_COLORS = ['#6A9BCC', '#00E5FF'];
 
 /** The chat's context window as of its last model request (`thread/tokenUsage/updated`, or the rollout's last token count). */
 interface CodexContext {
@@ -1467,7 +1467,7 @@ export class CodexBackend implements AgentBackend {
   /** Creates the thread of a new chat now and makes the view's id its alias. */
   private async createThread(s: CodexSession, workspace: string | null, modelId: string | null): Promise<string> {
     const mode = this.permissionMode();
-    const params: J = { approvalPolicy: approvalPolicy(mode), sandbox: sandboxMode(mode), serviceName: 'AntiGem' };
+    const params: J = { approvalPolicy: approvalPolicy(mode), sandbox: sandboxMode(mode), serviceName: 'LytsoCoder' };
     if (workspace) params.cwd = workspace;
     if (modelId) params.model = modelId;
     const res = await this.client.rpc('thread/start', params);

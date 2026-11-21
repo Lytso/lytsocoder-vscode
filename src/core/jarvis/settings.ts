@@ -383,7 +383,7 @@ export class JarvisSettings {
       kind: 'list',
       id: 'jarvis.setup.agents',
       label: 'Add the Jarvis MCP server',
-      description: "Required: these are the tools a Jarvis chat controls AntiGem with. Each agent keeps its own MCP list; add it to every agent you use for Jarvis chats.",
+      description: "Required: these are the tools a Jarvis chat controls LytsoCoder with. Each agent keeps its own MCP list; add it to every agent you use for Jarvis chats.",
       rows,
       emptyText: 'No agent is turned on (Settings → Agents).',
     });

@@ -1,4 +1,4 @@
-# AntiGem for VS Code: architecture and source guide
+# LytsoCoder for VS Code: architecture and source guide
 
 This document is for **extension reviewers, security auditors and contributors**. It explains:
 - what the extension runs, and which ports and sockets it opens;
@@ -7,7 +7,7 @@ This document is for **extension reviewers, security auditors and contributors**
 
 Build and packaging steps are in [BUILDING.md](BUILDING.md). User documentation is in [README.md](README.md).
 
-The extension is the VS Code version of the AntiGem Android app (<https://github.com/santoshkurmi/antigem>). Most
+The extension is the VS Code version of the LytsoCoder Android app (<https://github.com/Lytso/LytsoCoder>). Most
 host and UI code is a TypeScript / SolidJS port of the app's Kotlin code, and the comments often name the Kotlin file
 they port.
 
@@ -32,7 +32,7 @@ they port.
          │ token header     plugin runtime            antigem-bridge --native-host
          ▼                  (user-installed                 ▲ stdio (Chrome native messaging)
  ┌──────────────────┐        plugins only)                  │
- │ antigem-bridge   │                                AntiGem Chrome extension
+ │ antigem-bridge   │                                LytsoCoder Chrome extension
  │ (Go, bin/)       │                                (dist/chrome-extension/)
  └─┬──────┬──────┬──┘
    │      │      └─ spawns the agent CLIs the user installed:
@@ -43,9 +43,9 @@ they port.
 
 **The core rules:**
 - **The webview never touches the network.** Every request runs in the extension host.
-- **Everything AntiGem serves is local.** It listens on `127.0.0.1` or on a per-user Unix socket, never on another
+- **Everything LytsoCoder serves is local.** It listens on `127.0.0.1` or on a per-user Unix socket, never on another
   interface.
-- **The agent CLIs are third-party programs the user installs.** AntiGem starts them, but it doesn't patch or modify
+- **The agent CLIs are third-party programs the user installs.** LytsoCoder starts them, but it doesn't patch or modify
   them (the agy binary is started unmodified: `--no-agy-patch`).
 
 ## 2. Where to start reading
@@ -82,9 +82,9 @@ they port.
 | `shared/` | The contract between host and UI: `model.ts` mirrors the app's `Models.kt`, `protocol.ts` lists every message. |
 | `webview/` | The UI: a SolidJS port of the app's Jetpack Compose UI. `webview/src/dev/mock.ts` is a fake host for UI work (`?mock`). |
 | `proto/` | The Antigravity hub's `LanguageServerService.proto`, loaded at runtime with protobufjs. |
-| `bridge/` | The Go bridge, a fork of the AntiGem app's IDE bridge. One static binary (`CGO_ENABLED=0`). |
+| `bridge/` | The Go bridge, a fork of the LytsoCoder app's IDE bridge. One static binary (`CGO_ENABLED=0`). |
 | `bin/` | The prebuilt bridge binaries, one per platform, built from `bridge/` (see section 9). |
-| `dist/chrome-extension/` (in the VSIX) | The AntiGem Chrome extension (Manifest V3, plain JavaScript, no build step). Its source is its own repository, `antigem-chrome-extension`, next to this one; `esbuild.mjs` copies it into `dist/` and the VSIX ships it, so reviewers can read it there. |
+| `dist/chrome-extension/` (in the VSIX) | The LytsoCoder Chrome extension (Manifest V3, plain JavaScript, no build step). Its source is its own repository, `antigem-chrome-extension`, next to this one; `esbuild.mjs` copies it into `dist/` and the VSIX ships it, so reviewers can read it there. |
 | `media/` | Icons. |
 | `scripts/` | Bridge build and VSIX packaging scripts. |
 | `dev/` | Developer tools, not shipped:<ul><li>`server.ts` runs `src/core` behind a WebSocket so the UI can run in a browser;</li><li>`test-*.ts` are offline and end-to-end test suites.</li></ul> |
@@ -115,7 +115,7 @@ they port.
 | `$XDG_RUNTIME_DIR/antigem/browser.sock` (fallback `~/.antigem/run/browser.sock`) | Browser link | The current user only (folder `0700`, socket `0600`, owner checked) |
 | Windows: `\\.\pipe\antigem-browser-<random>`, named in `~/.antigem/run/browser.pipe` | Browser link | The current user: a new random name each start, written only in their profile folder; other users get read access to the pipe at most, never write |
 
-### Outbound requests made by AntiGem itself
+### Outbound requests made by LytsoCoder itself
 - **Plugin repositories:** `api.github.com` / `raw.githubusercontent.com`. This happens when the user opens the plugin
   store, and in a 12-hour update check that only runs if a plugin was installed from a repository. The check only
   **notifies**; an update is installed only when the user presses *Update*.
@@ -126,15 +126,15 @@ they port.
 - **Agent skills from GitHub** (*Skills* page of each agent, *Install a plugin from GitHub* for agy): the bridge
   downloads the repository the user typed from `api.github.com` / `raw.githubusercontent.com` (or
   `github.com/<owner>/<repo>/archive/<ref>.zip` as one archive), only when the user presses *Find skills*, *Add*, *Update* or *Install*.
-- **STEM & diagrams bundle**, only when the user presses *Download* on that page: `github.com/Santoshkurmi/antigem/releases/download/render-v1/antigem-render-bundle-v1.zip`
+- **STEM & diagrams bundle**, only when the user presses *Download* on that page: `github.com/Lytso/antigem/releases/download/render-v1/antigem-render-bundle-v1.zip`
   (redirects to GitHub's release-asset host). Its size and SHA-256 are pinned; anything else is refused.
 - **EGM** (*Agents → EGM*), on *Install*, *Update*, *Check for update* and when that page opens (at most every
   5 minutes): `api.github.com/repos/google/elephant-goldfish-model/releases/latest` (or `…/commits/main`), the release's
   `SHA256SUMS` and ZIP (or `codeload.github.com/…/zip/<commit>`).
 - **Images in chat messages:** the webview CSP allows `img-src https:` so images in replies can render.
 
-The agent CLIs make their own connections to their providers. AntiGem does not proxy, inspect or log that traffic.
-**AntiGem has no telemetry and no analytics.**
+The agent CLIs make their own connections to their providers. LytsoCoder does not proxy, inspect or log that traffic.
+**LytsoCoder has no telemetry and no analytics.**
 
 ### Webview Content Security Policy (`src/extension.ts`, `webviewHtml`)
 `default-src 'none'; img-src <webview> data: blob: https:; media-src <webview> data: blob:; style-src <webview>
@@ -178,7 +178,7 @@ with a per-load nonce.
 - **No outside access:** the Chrome extension has no `externally_connectable`, so web pages and other extensions
   cannot message it. Messages from its own content scripts can only act on their own tab.
 - **Where agents can act** (enforced in the extension, `bg/policy.js`):
-  - only tabs in the "AntiGem" tab group (and popups they open);
+  - only tabs in the "LytsoCoder" tab group (and popups they open);
   - any other tab asks the user in a confirmation window;
   - a blocklist (banking, payments, password managers, crypto, `file://`) where the debugger is detached and
     nothing is recorded;
@@ -211,11 +211,11 @@ settings.
 | `~/.gemini/<antigravity-ide \| antigravity \| antigravity-cli>/` | Antigravity history, written by the agy hub | While agy runs |
 | `~/.claude/projects/…` (read) | Claude Code transcripts, read to show chat history and subagents | Opening chats |
 | `~/.codex/sessions/…` (read) | The end of a Codex chat's record file (last 1 MB), for its context window | Opening a Codex chat |
-| Agent configuration (agy `mcp_config.json`, Claude `settings.json` / MCP config, Codex `config.toml`, OpenCode config) | Changed through each agent's own API or CLI | Only when the user changes that agent's settings in AntiGem |
+| Agent configuration (agy `mcp_config.json`, Claude `settings.json` / MCP config, Codex `config.toml`, OpenCode config) | Changed through each agent's own API or CLI | Only when the user changes that agent's settings in LytsoCoder |
 | `~/.antigem_bridge/checkpoints/` | Project checkpoints: a hidden git repository per project (the project's own `.git` is only read) | Before each message, only for projects with checkpoints on (off by default); restore / delete on request |
 | `~/.antigem/memory/` (+ `~/.antigem_bridge/memory/state.json`) | Agent memories and cleaned copies of past chats, read by the agents | Only with *Agent memory* on (off by default): after each turn; delete / clear on request |
 | `~/.antigem/render/render-v1/` (+ `GUIDE.md`), `~/.antigem/render/cache/tikz/` | STEM & diagrams bundle, the guide agents read, compiled TikZ pictures | Download / remove on the STEM page; a TikZ block draws |
-| `~/.antigem/egm/`, `~/.antigem/egm-antigem/`, `~/.antigem/egm-download/` (temporary) | EGM and the rule files AntiGem writes for it | EGM install / update / settings |
+| `~/.antigem/egm/`, `~/.antigem/egm-antigem/`, `~/.antigem/egm-download/` (temporary) | EGM and the rule files LytsoCoder writes for it | EGM install / update / settings |
 | `~/.claude/skills/`, `~/.codex/skills/`, `~/.gemini/…/skills/`, OpenCode's skills folder (+ `.antigem-source.json` per skill) | Skills added from GitHub (written by the bridge) | Only on *Add* / *Update* / *Remove* on a Skills page |
 | `~/.gemini/jetski-standalone-oauth-token`, `~/.gemini/antigem-accounts/` (Linux) | agy's login and saved copies of other accounts (written by the bridge; tokens never reach the extension) | Only on *Save*, *Switch*, *Add account*, *Delete saved copy* |
 | VS Code global state | Extension preferences (enabled agents, theme, Jarvis state, MCP device id…) | Normal use |
@@ -232,7 +232,7 @@ Build-only: `esbuild`, `vite`, `vite-plugin-solid`, `typescript`, `@vscode/vsce`
 - `gorilla/websocket`, `google/uuid`, `modernc.org/sqlite` (pure Go SQLite) and their dependencies.
 - See `bridge/go.mod`.
 
-**Copied from the AntiGem app, unchanged:**
+**Copied from the LytsoCoder app, unchanged:**
 - `src/core/plugins/runtime/*.mjs` (plugin runtime).
 - The Chrome extension's `page-agent.js` (page helper for the browser tools).
 - `proto/LanguageServerService.proto`.

@@ -22,7 +22,7 @@ export function stemSettingsPage(b: RenderBundle): SettingsPage {
       value: installed ? 'Installed' : 'Not installed',
       tone: installed ? 'ok' : 'muted',
       description:
-        "SmilesDrawer, function-plot, JSXGraph, Matter.js and TikZJax (TeX with circuitikz, pgfplots, chemfig), at fixed versions, from AntiGem's GitHub release. " +
+        "SmilesDrawer, function-plot, JSXGraph, Matter.js and TikZJax (TeX with circuitikz, pgfplots, chemfig), at fixed versions, from LytsoCoder's GitHub release. " +
         `Checked against a fixed checksum, then kept in ${tildePath(b.root)}.`,
     },
     {
