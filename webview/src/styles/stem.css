@@ -1,0 +1,75 @@
+/* STEM blocks (ui/components/StemBlocks.kt): the card is the Mermaid card (mermaid.css); these are its body parts. */
+
+.stem-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+.stem-frame.fill {
+  height: 100%;
+}
+/* before the page's address arrives: the app's 200dp placeholder is 80dp for TikZ; one middle size here */
+.stem-wait {
+  height: 80px;
+}
+
+/* TikZ: the TeX run with its status over the bottom, the queue, a failed run with the end of the TeX log */
+.stem-compiling {
+  position: relative;
+}
+.stem-compiling .stem-status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.stem-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: calc(12 * var(--sp));
+  line-height: calc(16 * var(--sp));
+  letter-spacing: 0;
+  color: var(--on-surface-variant);
+}
+.stem-error {
+  padding: 10px;
+}
+.stem-error-title {
+  font-size: calc(13 * var(--sp));
+  font-weight: 600;
+  color: var(--danger);
+  margin-bottom: 6px;
+}
+.stem-log {
+  margin: 0;
+  padding: 8px;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: var(--mono, monospace);
+  font-size: calc(11 * var(--sp));
+  line-height: calc(15 * var(--sp));
+  letter-spacing: 0;
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
+}
+.stem-error .text-btn {
+  margin-top: 4px;
+}
+
+/* fullscreen */
+.stem-full-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.stem-full-msg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface-variant);
+}

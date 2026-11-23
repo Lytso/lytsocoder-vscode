@@ -1,0 +1,296 @@
+/* Project checkpoints (components/Checkpoints.tsx): CheckpointRestoreSheet.kt, TrackProjectDialog and the bubble's
+   "Restore point" chip, in the app's sizes. */
+
+/* ------------------------------------------------------------------ in the bubble */
+
+.cp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 5px 2px 0 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: calc(11 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 50%, transparent);
+  transition: background-color 120ms;
+}
+.cp-chip .icon {
+  color: color-mix(in srgb, var(--on-surface) 45%, transparent);
+}
+.cp-chip:hover {
+  background: color-mix(in srgb, var(--on-surface) 7%, transparent);
+}
+
+.cp-edit-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 6px;
+  border-radius: 10px;
+  color: var(--info);
+  font-size: calc(13.5 * var(--sp));
+  text-align: left;
+  transition: background-color 120ms;
+}
+.cp-edit-link:hover {
+  background: color-mix(in srgb, var(--info) 8%, transparent);
+}
+
+/* ------------------------------------------------------------------ restore sheet */
+
+.cp-sheet {
+  padding-bottom: 22px;
+}
+.cp-body {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cp-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cp-head-icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+}
+.cp-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.cp-title {
+  font-size: calc(17 * var(--sp));
+  font-weight: 700;
+  color: var(--on-surface);
+}
+.cp-sub {
+  font-size: calc(12.5 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cp-quote {
+  margin: -6px 0 14px;
+  font-size: calc(13 * var(--sp));
+  line-height: calc(18 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 75%, transparent);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cp-busy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 26px 0;
+  font-size: calc(13.5 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cp-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: calc(12.5 * var(--sp));
+  line-height: calc(17 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 85%, transparent);
+  white-space: pre-line;
+}
+.cp-notice .icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.cp-head + .cp-notice,
+.cp-quote + .cp-notice {
+  margin-top: 0;
+}
+.cp-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cp-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: calc(12 * var(--sp));
+  font-weight: 600;
+}
+.cp-files {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10px;
+  padding: 4px 0;
+  border-radius: 14px;
+  background: var(--surface-container-low);
+  max-height: 380px;
+  overflow-y: auto;
+}
+.cp-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  color: var(--on-surface);
+  transition: background-color 120ms;
+}
+.cp-file + .cp-file {
+  border-top: 1px solid color-mix(in srgb, var(--on-surface) 5%, transparent);
+}
+.cp-file:hover {
+  background: color-mix(in srgb, var(--on-surface) 5%, transparent);
+}
+.cp-file .icon {
+  flex-shrink: 0;
+}
+.cp-file-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cp-file-name,
+.cp-file-dir {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cp-file-name {
+  font-size: calc(13.5 * var(--sp));
+  font-weight: 500;
+}
+.cp-file-dir {
+  font-size: calc(11 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cp-plus,
+.cp-minus {
+  font-family: var(--mono);
+  font-size: calc(12 * var(--sp));
+  font-weight: 600;
+}
+.cp-plus {
+  color: var(--success);
+}
+.cp-minus {
+  color: var(--danger);
+}
+.cp-file-open {
+  color: var(--on-surface-variant);
+}
+.cp-hint {
+  margin-top: 4px;
+  font-size: calc(11.5 * var(--sp));
+  line-height: calc(15 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cp-warnings {
+  display: flex;
+  flex-direction: column;
+}
+.cp-warnings .cp-notice {
+  margin-top: 6px;
+}
+.cp-warnings .cp-notice:first-child {
+  margin-top: 10px;
+}
+.cp-later {
+  padding: 4px 0 0 6px;
+}
+.cp-later-row {
+  font-size: calc(12 * var(--sp));
+  line-height: calc(16 * var(--sp));
+  color: var(--on-surface-variant);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cp-outside {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: calc(11.5 * var(--sp));
+  line-height: calc(15 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cp-outside .icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.cp-label {
+  margin: 16px 0 0;
+  font-size: calc(13 * var(--sp));
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+.cp-modes {
+  margin-top: 8px;
+  overflow: visible;
+}
+.cp-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+}
+.cp-spacer {
+  flex: 1;
+}
+.cp-undo {
+  gap: 6px;
+}
+.cp-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+}
+.cp-done-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.cp-done-title {
+  font-size: calc(16 * var(--sp));
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+/* ------------------------------------------------------------------ ask once (TrackProjectDialog) */
+
+.cp-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--on-surface);
+}
+.cp-ask .cp-notice {
+  margin-top: 0;
+}
+.cp-ask .cp-hint {
+  margin-top: 0;
+}

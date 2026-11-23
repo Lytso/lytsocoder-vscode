@@ -1,0 +1,279 @@
+/* The controls strip's popovers (components/ChipPopover.tsx, ControlsStrip.tsx): the model picker's surface, header,
+   rows and footer (modelpicker.css .mp-pop / .mp-head / .mp-row / .mp-foot) anchored to a chip. Only what differs is here
+   (this file loads before modelpicker.css / panels.css: overrides name both classes). */
+
+.mp-pop.cp-pop.down {
+  animation-name: cp-in-down;
+}
+@keyframes cp-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* header: agent mark, title, agent name (or the card's subtitle) */
+.mp-head.cp-head {
+  padding: 9px 10px 5px 11px;
+}
+.cp-titles {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.cp-title,
+.cp-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-sub {
+  font-size: calc(11 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cp-spin {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  border-right-color: transparent;
+  animation: spin 800ms linear infinite;
+}
+
+/* an option: check column, its colored icon, label and one-line description */
+.mp-list.cp-list {
+  padding-top: 2px;
+}
+.cp-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  margin-right: 2px;
+  border-radius: 8px;
+  color: var(--row-accent);
+  background: color-mix(in srgb, var(--row-accent) 13%, transparent);
+}
+
+/* footer: the chip's note (and the card's buttons) */
+.mp-foot.cp-foot {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 8px;
+  padding: 8px 10px 8px 12px;
+  line-height: 1.4;
+}
+.cp-foot > .icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.cp-note {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------ an info chip's details card */
+.cd-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 14px 14px;
+  scrollbar-width: thin;
+  font-size: calc(12 * var(--sp));
+  font-variant-numeric: tabular-nums;
+}
+.cd-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 0 8px;
+  color: var(--on-surface-variant);
+}
+.cd-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--danger);
+  line-height: 1.4;
+}
+.cd-error .icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.cd-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cd-value {
+  font-size: calc(17 * var(--sp));
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.cd-caption {
+  color: var(--on-surface-variant);
+}
+
+/* stacked bar + legend (Claude Code's context usage: an 8px track, flush segments, square swatches) */
+.cd-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cd-stack {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--on-surface) 11%, transparent);
+}
+.cd-stack > span {
+  height: 100%;
+  min-width: 2px;
+  flex-shrink: 0;
+}
+.cd-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cd-leg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cd-swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+.cd-swatch.free {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-surface) 35%, transparent);
+}
+.cd-leg-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-leg-val {
+  color: color-mix(in srgb, var(--on-surface) 70%, transparent);
+}
+.cd-leg-pct {
+  width: 44px;
+  text-align: right;
+  font-size: calc(11 * var(--sp));
+  color: color-mix(in srgb, var(--on-surface) 50%, transparent);
+}
+
+/* meters: label, text on the right, a thin bar, a detail line */
+.cd-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cd-meter {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 4px;
+}
+.cd-meter-label {
+  min-width: 0;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-meter-text {
+  font-size: calc(11.5 * var(--sp));
+  color: var(--on-surface-variant);
+}
+.cd-meter-bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--on-surface) 11%, transparent);
+}
+.cd-meter-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.cd-meter-detail {
+  grid-column: 1 / -1;
+  font-size: calc(11 * var(--sp));
+  color: var(--on-surface-variant);
+}
+
+/* label / value lines */
+.cd-rows {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 12px;
+  row-gap: 5px;
+}
+.cd-row-label {
+  min-width: 0;
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cd-row-value {
+  text-align: right;
+  font-weight: 550;
+}
+
+.cd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+.cd-action {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--on-surface) 16%, transparent);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--on-surface);
+  font: inherit;
+  font-size: calc(11.5 * var(--sp));
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.cd-action:hover {
+  background: color-mix(in srgb, var(--on-surface) 7%, transparent);
+}
+.cd-action.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
+.cd-action.primary:hover {
+  background: color-mix(in srgb, var(--accent) 86%, #000);
+}
+
+/* ------------------------------------------------------------------ the chip while its popover is open */
+.controls-strip .control-chip.open:not(:disabled) {
+  background: color-mix(in srgb, var(--chip) 16%, transparent);
+  border-color: color-mix(in srgb, var(--chip) 50%, transparent);
+}
